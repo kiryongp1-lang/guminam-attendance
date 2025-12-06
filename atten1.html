@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>구미남 초2 출석부</title>
+
+<!-- 모바일 최적화 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- SheetJS (엑셀 저장) -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    padding: 15px;
+    max-width: 900px;
+    margin: auto;
+  }
+  h1 { font-size: 22px; text-align:center; }
+
+  .box {
+    border:1px solid #ccc;
+    padding:15px;
+    margin-bottom:20px;
+    border-radius:10px;
+    background:white;
+  }
+
+  button {
+    padding:10px 14px;
+    border:none;
+    background:#007bff;
+    color:white;
+    border-radius:6px;
+    margin-top:8px;
+    cursor:pointer;
+  }
+  button:active { opacity:0.8; }
+
+  input, select {
+    padding:8px;
+    margin:5px 0;
+    width:100%;
+    box-sizing:border-box;
+  }
+
+  .student-row {
+    display:flex;
+    justify-content:space-between;
+    padding:6px 0;
+    border-bottom:1px solid #eee;
+    font-size:15px;
+  }
+
+  .status-radio input {
+    transform:scale(1.2);
+    margin-right:5px;
+  }
+
+  .missingBox {
+    background:#ffeaea;
+    padding:10px;
+    border:1px solid red;
+    border-radius:6px;
+    margin-top:10px;
+  }
+  .clickable { color:red; cursor:pointer; font-weight:bold; }
+
+  table {
+    width:100%;
+    border-collapse:collapse;
+    margin-top:12px;
+    font-size:14px;
+  }
+  th, td {
+    border:1px solid #aaa;
+    padding:6px;
+    text-align:center;
+  }
+  th { background:#f2f2f2; }
+  .red { color:red; font-weight:bold; }
+
+  .hidden { display:none; }
+</style>
+</head>
+
+<body>
+
+<h1>구미남 초2 출석부</h1>
+
+<!-- 학생 등록 -->
+<button onclick="toggleRegisterUI()">학생 등록</button>
+<div id="registerUI" class="hidden box">
+  <h2>학년 / 반 / 학생 등록</h2>
+  <label>학년</label>
+  <input type="text" id="regGrade">
+
+  <label>반</label>
+  <input type="text" id="regClass">
+
+  <label>학생 이름</label>
+  <input type="text" id="regStudent">
+
+  <button onclick="registerStudent()">등록</button>
+</div>
+
+<!-- 출석 체크 -->
+<div class="box">
+  <h2>출석 체크</h2>
+
+  <label>날짜 선택 (일요일만)</label>
+  <input type="date" id="attDate" onchange="onSelectDate()">
+
+  <div id="missingClassBox"></div>
+
+  <label>학년 선택</label>
+  <select id="attGrade" onchange="loadClasses()"></select>
+
+  <label>반 선택</label>
+  <select id="attClass" onchange="loadStudents()"></select>
+
+  <div id="studentList"></div>
+
+  <button onclick="saveAttendance()">출석 저장</button>
+</div>
+
+<!-- 일별 조회 -->
+<div class="box">
+  <h2>일별 조회</h2>
+  <input type="date" id="dailyQuery" onchange="queryDaily()">
+
+  <button onclick="downloadDailyExcel()">엑셀 다운로드</button>
+
+  <div id="dailyResult"></div>
+</div>
+
+<!-- 월별 조회 -->
+<div class="box">
+  <h2>월별 조회</h2>
+  <input type="month" id="monthlyQuery" onchange="queryMonthly()">
+
+  <button onclick="downloadMonthlyExcel()">엑셀 다운로드</button>
+
+  <div id="monthlyResult"></div>
+</div>
+
+<script type="module">
+
+/* ---------------------------------------
+    Firebase Firestore 설정
+--------------------------------------- */
+import { initializeApp } 
+  from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+
+import {
+  getFirestore, doc, setDoc,
+  collection, getDocs
+} from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAqOhG9cyAdrEPR_d2xRwJKDreud4mBIpk",
+  authDomain: "guminam-70f61.firebaseapp.com",
+  projectId: "guminam-70f61",
+  storageBucket: "guminam-70f61.firebasestorage.app",
+  messagingSenderId: "657304988654",
+  appId: "1:657304988654:web:29f66969eb844711723cff",
+  measurementId: "G-7N0PHE3P8Z"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+/* ---------------------------------------
+    전역 데이터
+--------------------------------------- */
+let classes = {};
+let attendance = {};
+
+async function loadAllData() {
+  classes = {};
+  attendance = {};
+
+  const cls = await getDocs(collection(db, "classes"));
+  cls.forEach(d => classes[d.id] = d.data().students);
+
+  const att = await getDocs(collection(db, "attendance"));
+  att.forEach(d => attendance[d.id] = d.data());
+
+  loadGradeDropdown();
+}
+await loadAllData();
+
+/* ---------------------------------------
+    UI 도구
+--------------------------------------- */
+function $(id){ return document.getElementById(id); }
+
+/* ---------------------------------------
+    학생 등록
+--------------------------------------- */
+window.toggleRegisterUI = function(){
+  $("registerUI").classList.toggle("hidden");
+}
+
+window.registerStudent = async function(){
+  const g = $("regGrade").value.trim();
+  const c = $("regClass").value.trim();
+  const s = $("regStudent").value.trim();
+
+  if(!g || !c || !s) return alert("모든 항목을 입력하세요.");
+
+  const key = `${g}-${c}`;
+
+  if(!classes[key]) classes[key] = [];
+  if(!classes[key].includes(s)) classes[key].push(s);
+
+  await setDoc(doc(db, "classes", key), { students: classes[key] });
+
+  alert("등록 완료!");
+  loadGradeDropdown();
+};
+
+/* ---------------------------------------
+    학년 dropbox 채우기 (학생 있는 반만 대상)
+--------------------------------------- */
+function loadGradeDropdown(){
+  const sel = $("attGrade");
+  sel.innerHTML = `<option value=''>선택</option>`;
+
+  // 학생이 1명 이상 있는 반만 학년 목록에 반영
+  const grades = [...new Set(
+    Object.keys(classes)
+      .filter(k => Array.isArray(classes[k]) && classes[k].length > 0)
+      .map(k => k.split("-")[0])
+  )];
+
+  grades.forEach(g => sel.innerHTML += `<option value="${g}">${g}</option>`);
+}
+
+/* ---------------------------------------
+    학년 선택 → 반 목록 로드 (학생 있는 반만)
+--------------------------------------- */
+window.loadClasses = function(){
+  const g = $("attGrade").value;
+  const sel = $("attClass");
+
+  sel.innerHTML = `<option value="">선택</option>`;
+
+  // 해당 학년이면서, 실제 학생이 1명 이상 있는 반만 표시
+  Object.keys(classes)
+    .filter(k => 
+      k.split("-")[0] === g &&
+      Array.isArray(classes[k]) && classes[k].length > 0
+    )
+    .forEach(k => {
+      const c = k.split("-")[1];
+      sel.innerHTML += `<option value="${c}">${c}</option>`;
+    });
+
+  loadStudents();
+};
+
+/* ---------------------------------------
+    반 선택 → 학생 목록 표시 + 기존 출석 반영
+--------------------------------------- */
+window.loadStudents = function(){
+  const g = $("attGrade").value;
+  const c = $("attClass").value;
+  const key = `${g}-${c}`;
+  const date = $("attDate").value;
+
+  const box = $("studentList");
+  if(!classes[key]){ box.innerHTML = ""; return; }
+
+  const dayData = attendance[date]?.[key] || {};
+
+  box.innerHTML = classes[key].map(st => {
+    const prev = dayData[st] || "미체크";
+    return `
+      <div class="student-row">
+        <b>${st}</b>
+        <label><input type="radio" name="st_${st}" value="present"
+          ${prev === "present" ? "checked" : ""}> 출석</label>
+
+        <label><input type="radio" name="st_${st}" value="absent"
+          ${prev === "absent" ? "checked" : ""}> 결석</label>
+
+        <label><input type="radio" name="st_${st}" value="delete"> 
+          ❌ 삭제(명단)
+        </label>
+      </div>
+    `;
+  }).join('');
+};
+
+
+/* ---------------------------------------
+    날짜 선택 (일요일만)
+--------------------------------------- */
+window.onSelectDate = function(){
+  const d = new Date($("attDate").value);
+  if(d.getDay() !== 0){
+    alert("일요일만 선택 가능합니다.");
+    $("attDate").value = "";
+    return;
+  }
+  showMissingClasses();
+};
+
+/* ---------------------------------------
+    미체크 반 표시 (학생 없는 반 제외)
+--------------------------------------- */
+function showMissingClasses(){
+  const date = $("attDate").value;
+  const box = $("missingClassBox");
+
+  const data = attendance[date] || {};
+
+  // 실제로 학생이 1명 이상 있는 반만 활성 반으로 취급
+  const activeClasses = Object.keys(classes)
+    .filter(k => Array.isArray(classes[k]) && classes[k].length > 0);
+
+  // 그 중에서만 출석 데이터가 없는 반을 "미체크 반"으로 표시
+  const missing = activeClasses.filter(k => !data[k]);
+
+  if(missing.length === 0){
+    box.innerHTML = "<b>모든 반이 체크되었습니다.</b>";
+    return;
+  }
+
+  box.innerHTML = `
+    <div class='missingBox'>
+      <b>출석 미체크 반:</b><br>
+      ${missing.map(k => 
+        `<div class="clickable" onclick="selectClass('${k}')">${k}</div>`
+      ).join("")}
+    </div>
+  `;
+}
+
+window.selectClass = function(key){
+  const [g,c] = key.split("-");
+  $("attGrade").value = g;
+  loadClasses();
+  $("attClass").value = c;
+  loadStudents();
+};
+
+/* ---------------------------------------
+    출석 저장
+--------------------------------------- */
+window.saveAttendance = async function(){
+  const date = $("attDate").value;
+  const g = $("attGrade").value;
+  const c = $("attClass").value;
+
+  if(!date || !g || !c) return alert("날짜/학년/반을 입력하세요.");
+
+  const key = `${g}-${c}`;
+
+  if(!classes[key]) return;
+
+  if(!attendance[date]) attendance[date] = {};
+  if(!attendance[date][key]) attendance[date][key] = {};
+
+  const newStudentList = [];
+
+  for(const st of classes[key]){
+
+    const sel = document.querySelector(`input[name="st_${st}"]:checked`);
+    const state = sel ? sel.value : "미체크";
+
+    // 삭제인 경우 → 명단에서 제거
+    if(state === "delete"){
+      const ok = confirm(`${st} 학생을 명단에서 삭제할까요?`);
+      if(ok){
+        // 출석기록에서도 삭제
+        delete attendance[date][key][st];
+        continue; // 명단에도 추가하지 않음
+      }
+    }
+
+    // 출결 상태 저장
+    attendance[date][key][st] = state;
+    newStudentList.push(st);
+  }
+
+  // Firestore 명단 업데이트
+  classes[key] = newStudentList;
+  await setDoc(doc(db, "classes", key), { students: newStudentList });
+
+  // 출석 저장
+  await setDoc(doc(db, "attendance", date), attendance[date]);
+
+  alert("저장되었습니다!");
+
+  loadStudents();        // 명단 새로고침
+  showMissingClasses();  // 미체크 반 갱신
+};
+
+
+/* ---------------------------------------
+    일별 조회
+--------------------------------------- */
+window.queryDaily = function(){
+  const date = $("dailyQuery").value;
+  const box = $("dailyResult");
+  const data = attendance[date] || {};
+
+  let html = "<table><tr><th>학년-반/학생</th><th>상태</th></tr>";
+
+  Object.keys(classes).forEach(key=>{
+    classes[key].forEach(st=>{
+      let v = data[key]?.[st] || "미체크";
+
+      if(v==="present") v="출석";
+      else if(v==="absent") v="<span class='red'>결석</span>";
+      else if(v==="delete") v="<span class='red'>삭제</span>";
+      else v="<span class='red'>미체크</span>";
+
+      html += `<tr><td>${key}/${st}</td><td>${v}</td></tr>`;
+    });
+  });
+
+  box.innerHTML = html + "</table>";
+};
+
+/* ---------------------------------------
+    월별 조회
+--------------------------------------- */
+window.queryMonthly = function(){
+  const m = $("monthlyQuery").value;
+  const year = m.split("-")[0];
+  const month = Number(m.split("-")[1]);
+
+  const days = [];
+
+  for(let i=1;i<=31;i++){
+    const d = new Date(`${m}-${String(i).padStart(2,'0')}`);
+    if(d.getMonth()+1 !== month) continue;
+    if(d.getDay() === 0)
+      days.push(`${m}-${String(i).padStart(2,'0')}`);
+  }
+
+  let html = `<table><tr><th>학년-반/학생</th>`;
+  days.forEach(d => html += `<th>${d}</th>`);
+  html += "</tr>";
+
+  Object.keys(classes).forEach(key=>{
+    classes[key].forEach(st=>{
+      html += `<tr><td>${key}/${st}</td>`;
+      days.forEach(day=>{
+        let v = attendance[day]?.[key]?.[st] || "미체크";
+
+        if(v==="present") v="출석";
+        else if(v==="absent") v="<span class='red'>결석</span>";
+        else if(v==="delete") v="<span class='red'>삭제</span>";
+        else v="<span class='red'>미체크</span>";
+
+        html += `<td>${v}</td>`;
+      });
+      html += "</tr>";
+    });
+  });
+
+  $("monthlyResult").innerHTML = html + "</table>";
+};
+
+/* ---------------------------------------
+    엑셀 다운로드 기능
+--------------------------------------- */
+window.downloadDailyExcel = function(){
+  const table = document.querySelector("#dailyResult table");
+  if(!table) return alert("조회 후 다운로드 가능합니다.");
+
+  const wb = XLSX.utils.table_to_book(table, {sheet:"일별 조회"});
+  XLSX.writeFile(wb, "attendance_daily.xlsx");
+};
+
+window.downloadMonthlyExcel = function(){
+  const table = document.querySelector("#monthlyResult table");
+  if(!table) return alert("조회 후 다운로드 가능합니다.");
+
+  const wb = XLSX.utils.table_to_book(table, {sheet:"월별 조회"});
+  XLSX.writeFile(wb, "attendance_monthly.xlsx");
+};
+
+</script>
+</body>
+</html>
