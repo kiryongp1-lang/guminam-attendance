@@ -317,12 +317,21 @@ function showMissingClasses(){
 
   const data = attendance[date] || {};
 
-  // 실제로 학생이 1명 이상 있는 반만 활성 반으로 취급
+  // 실제 학생이 1명 이상 있는 반만 대상으로
   const activeClasses = Object.keys(classes)
     .filter(k => Array.isArray(classes[k]) && classes[k].length > 0);
 
-  // 그 중에서만 출석 데이터가 없는 반을 "미체크 반"으로 표시
-  const missing = activeClasses.filter(k => !data[k]);
+  // 🔥 '미체크 반' 판단 로직
+  const missing = activeClasses.filter(key => {
+    const students = classes[key];
+    const dayData = data[key] || {};
+
+    // 학생 중 하나라도 출석/결석 체크가 안 되어 있으면 미체크 처리
+    return students.some(st => {
+      const v = dayData[st];
+      return !(v === "present" || v === "absent" || v === "delete");
+    });
+  });
 
   if(missing.length === 0){
     box.innerHTML = "<b>모든 반이 체크되었습니다.</b>";
@@ -489,3 +498,4 @@ window.downloadMonthlyExcel = function(){
 </script>
 </body>
 </html>
+
