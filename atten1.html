@@ -155,8 +155,11 @@ import { initializeApp }
 
 import {
   getFirestore, doc, setDoc,
-  collection, getDocs
+  collection, getDocs,
+  query, where,
+  writeBatch
 } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
 
 const firebaseConfig = {
   apiKey: "AIzaSyAqOhG9cyAdrEPR_d2xRwJKDreud4mBIpk",
@@ -408,32 +411,225 @@ window.saveAttendance = async function(){
   showMissingClasses();  // 미체크 반 갱신
 };
 
+// ✅ batch 500 제한 회피(여유 있게 450개씩)
+async function commitInChunks(db, ops, chunkSize = 450) {
+  for (let i = 0; i < ops.length; i += chunkSize) {
+    const batch = writeBatch(db);
+    ops.slice(i, i + chunkSize).forEach(fn => fn(batch));
+    await batch.commit();
+  }
+}
+
+// ✅ "특정 반키(classKey)"가 포함된 attendance 문서만 조회 (가능하면 where, 실패 시 전체 스캔)
+async function getAttendanceDocsHavingClassKey(classKey){
+  let docs = [];
+  try{
+    const q = query(collection(db, "attendance"), where(classKey, "!=", null));
+    const snap = await getDocs(q);
+    snap.forEach(d => docs.push({ id: d.id, data: d.data() }));
+    return docs;
+  }catch(e){
+    console.warn("where 조회 실패 → 전체 스캔 fallback", e);
+    const snapAll = await getDocs(collection(db, "attendance"));
+    snapAll.forEach(d => {
+      const data = d.data();
+      if(data && data[classKey] != null) docs.push({ id: d.id, data });
+    });
+    return docs;
+  }
+}
+
+// ✅ 이름(학생) 기준으로 반 이동(학년/반 수정)
+// - classes: oldKey에서 학생 제거, newKey에 학생 추가
+// - attendance: oldKey가 있는 문서만 찾아서 그 문서 안에서 학생 출석 데이터를 oldKey → newKey로 이동
+window.moveStudentClass = async function(oldKey, studentName){
+  const safeKey = encodeURIComponent(oldKey);
+  const safeName = encodeURIComponent(studentName);
+
+  // ✅ queryDaily에서 만든 input id 규칙에 맞춤
+  const gEl = document.getElementById(`mvGrade_${safeKey}_${safeName}`);
+  const cEl = document.getElementById(`mvClass_${safeKey}_${safeName}`);
+  if(!gEl || !cEl) return;
+
+  const newGrade = (gEl.value || "").trim();
+  const newClass = (cEl.value || "").trim();
+  if(!newGrade || !newClass) return alert("학년/반을 입력하세요.");
+
+  const newKey = `${newGrade}-${newClass}`;
+  if(newKey === oldKey){
+    alert("변경 내용이 없습니다.");
+    return;
+  }
+
+  if(!Array.isArray(classes[newKey])) classes[newKey] = [];
+
+  if(classes[newKey].includes(studentName)){
+    return alert(`이동 불가: ${newKey} 반에 이미 '${studentName}'이(가) 있습니다.`);
+  }
+
+  const ok = confirm(`학생 반 이동을 저장할까요?\n${studentName}\n${oldKey} → ${newKey}\n(출석 데이터도 함께 이동합니다)`);
+  if(!ok) return;
+
+  try{
+    // oldKey가 포함된 attendance 문서만 조회
+    const attDocs = await getAttendanceDocsHavingClassKey(oldKey);
+
+    // classes 메모리 이동
+    classes[oldKey] = (classes[oldKey] || []).filter(n => n !== studentName);
+    classes[newKey].push(studentName);
+
+    // attendance 메모리 이동 (oldKey가 있는 문서만)
+    attDocs.forEach(({ id, data }) => {
+      if(!attendance[id]) attendance[id] = data;
+
+      const docData = attendance[id];
+      const oldClassData = docData?.[oldKey];
+      if(!oldClassData) return;
+
+      const v = oldClassData[studentName];
+      if(v == null) return;
+
+      if(!docData[newKey]) docData[newKey] = {};
+      if(docData[newKey][studentName] != null){
+        throw new Error(`출석 데이터 충돌: ${id} 문서의 ${newKey}에 이미 ${studentName} 기록이 존재합니다.`);
+      }
+
+      docData[newKey][studentName] = v;
+      delete oldClassData[studentName];
+    });
+
+    // Firestore 업데이트 ops 구성
+    const ops = [];
+    ops.push(b => b.set(doc(db, "classes", oldKey), { students: classes[oldKey] || [] }));
+    ops.push(b => b.set(doc(db, "classes", newKey), { students: classes[newKey] || [] }));
+    attDocs.forEach(({ id }) => {
+      ops.push(b => b.set(doc(db, "attendance", id), attendance[id]));
+    });
+
+    await commitInChunks(db, ops, 450);
+
+    alert(`저장 완료!\n${studentName}\n${oldKey} → ${newKey}\n(업데이트 문서 수: ${attDocs.length})`);
+
+    loadGradeDropdown();
+    if(document.getElementById("dailyQuery")?.value) queryDaily();
+    showMissingClasses();
+    loadStudents();
+
+  }catch(ex){
+    console.error(ex);
+    alert("반 이동 저장 중 오류가 발생했습니다.\n(콘솔 로그 확인)");
+  }
+};
+
+
 
 /* ---------------------------------------
     일별 조회
+--------------------------------------- */
+/* ---------------------------------------
+    일별 조회 (학년-반 순서 + 이름 오른쪽)
 --------------------------------------- */
 window.queryDaily = function(){
   const date = $("dailyQuery").value;
   const box = $("dailyResult");
   const data = attendance[date] || {};
 
-  let html = "<table><tr><th>학년-반/학생</th><th>상태</th></tr>";
+  if(!date){
+    box.innerHTML = "";
+    return;
+  }
 
-  Object.keys(classes).forEach(key=>{
-    classes[key].forEach(st=>{
-      let v = data[key]?.[st] || "미체크";
-
-      if(v==="present") v="출석";
-      else if(v==="absent") v="<span class='red'>결석</span>";
-      else if(v==="delete") v="<span class='red'>삭제</span>";
-      else v="<span class='red'>미체크</span>";
-
-      html += `<tr><td>${key}/${st}</td><td>${v}</td></tr>`;
-    });
+  // (반키, 학생이름) 형태로 펼치기
+  const rows = [];
+  Object.keys(classes).forEach(classKey => {
+    const list = classes[classKey] || [];
+    list.forEach(name => rows.push({ name, classKey }));
   });
 
-  box.innerHTML = html + "</table>";
+  // ✅ 학년→반→이름 순서 정렬
+  rows.sort((a, b) => {
+    const [ag, ac] = String(a.classKey).split("-");
+    const [bg, bc] = String(b.classKey).split("-");
+
+    // 숫자 가능하면 숫자 정렬, 아니면 문자열 정렬
+    const agn = Number(ag), acn = Number(ac);
+    const bgn = Number(bg), bcn = Number(bc);
+
+    const agIsNum = !Number.isNaN(agn) && ag !== "";
+    const bgIsNum = !Number.isNaN(bgn) && bg !== "";
+    if(agIsNum && bgIsNum && agn !== bgn) return agn - bgn;
+    if(!(agIsNum && bgIsNum)){
+      const r = String(ag).localeCompare(String(bg), "ko");
+      if(r !== 0) return r;
+    }
+
+    const acIsNum = !Number.isNaN(acn) && ac !== "";
+    const bcIsNum = !Number.isNaN(bcn) && bc !== "";
+    if(acIsNum && bcIsNum && acn !== bcn) return acn - bcn;
+    if(!(acIsNum && bcIsNum)){
+      const r = String(ac).localeCompare(String(bc), "ko");
+      if(r !== 0) return r;
+    }
+
+    return String(a.name).localeCompare(String(b.name), "ko");
+  });
+
+  // ✅ html 시작
+  let html = `
+    <table>
+      <tr>
+        <th style="width:18%;">현재 학년-반</th>
+        <th style="width:20%;">변경 학년</th>
+        <th style="width:20%;">변경 반</th>
+        <th style="width:10%;">상태</th>
+        <th style="width:10%;">저장</th>
+        <th style="width:22%;">이름</th>
+      </tr>
+  `;
+
+  rows.forEach(r => {
+    const name = r.name;
+    const oldKey = r.classKey;
+
+    const [g0, c0] = String(oldKey).split("-");
+    const safeKey = encodeURIComponent(oldKey);
+    const safeName = encodeURIComponent(name);
+
+    // 상태 표시
+    let v = data[oldKey]?.[name] || "미체크";
+    if(v === "present") v = "출석";
+    else if(v === "absent") v = "<span class='red'>결석</span>";
+    else if(v === "delete") v = "<span class='red'>삭제</span>";
+    else v = "<span class='red'>미체크</span>";
+
+    html += `
+      <tr>
+        <td>${oldKey}</td>
+
+        <td>
+          <input id="mvGrade_${safeKey}_${safeName}" value="${g0 || ""}" style="width:100%;">
+        </td>
+
+        <td>
+          <input id="mvClass_${safeKey}_${safeName}" value="${c0 || ""}" style="width:100%;">
+        </td>
+
+        <td>${v}</td>
+
+        <td>
+          <button onclick="moveStudentClass('${oldKey}', '${name}')">저장</button>
+        </td>
+
+        <td><b>${name}</b></td>
+      </tr>
+    `;
+  });
+
+  html += `</table>`;
+  box.innerHTML = html;
 };
+
+
 
 /* ---------------------------------------
     월별 조회
@@ -498,5 +694,4 @@ window.downloadMonthlyExcel = function(){
 </script>
 </body>
 </html>
-
 
