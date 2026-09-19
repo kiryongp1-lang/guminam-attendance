@@ -3,125 +3,202 @@
 <head>
 <meta charset="UTF-8">
 <title>구미남 초2 출석부</title>
-
-<!-- 모바일 최적화 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<!-- SheetJS (엑셀 저장) -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    padding: 15px;
-    max-width: 900px;
-    margin: auto;
-  }
-  h1 { font-size: 22px; text-align:center; }
-
-  .box {
-    border:1px solid #ccc;
-    padding:15px;
-    margin-bottom:20px;
-    border-radius:10px;
-    background:white;
-  }
-
-  button {
-    padding:10px 14px;
-    border:none;
-    background:#007bff;
-    color:white;
-    border-radius:6px;
-    margin-top:8px;
-    cursor:pointer;
-  }
+  body { font-family: Arial, sans-serif; padding:15px; max-width:900px; margin:auto; background:#fafafa; }
+  h1 { font-size:22px; text-align:center; }
+  h2 { font-size:18px; margin:0 0 12px; }
+  .box { border:1px solid #ccc; padding:15px; margin-bottom:20px; border-radius:10px; background:white; }
+  .topbar { display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-bottom:12px; flex-wrap:wrap; }
+  .status { font-size:13px; color:#666; }
+  .admin-badge { color:#0a7a2e; font-weight:bold; }
+  button { padding:10px 14px; border:none; background:#007bff; color:white; border-radius:6px; margin-top:8px; cursor:pointer; }
+  button.secondary { background:#6c757d; }
+  button.danger { background:#c82333; }
+  button.success { background:#218838; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
   button:active { opacity:0.8; }
-
-  input, select {
-    padding:8px;
-    margin:5px 0;
-    width:100%;
-    box-sizing:border-box;
-  }
-
-  .student-row {
-    display:flex;
-    justify-content:space-between;
-    padding:6px 0;
-    border-bottom:1px solid #eee;
-    font-size:15px;
-  }
-
-  .status-radio input {
-    transform:scale(1.2);
-    margin-right:5px;
-  }
-
-  .missingBox {
-    background:#ffeaea;
-    padding:10px;
-    border:1px solid red;
-    border-radius:6px;
-    margin-top:10px;
-  }
+  input, select { padding:8px; margin:5px 0; width:100%; box-sizing:border-box; }
+  .student-row { display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid #eee; font-size:15px; align-items:center; }
+  .student-row b { min-width:100px; }
+  .status-radio input { transform:scale(1.2); margin-right:5px; }
+  .missingBox { background:#ffeaea; padding:10px; border:1px solid red; border-radius:6px; margin-top:10px; }
   .clickable { color:red; cursor:pointer; font-weight:bold; }
-
-  table {
-    width:100%;
-    border-collapse:collapse;
-    margin-top:12px;
-    font-size:14px;
-  }
-  th, td {
-    border:1px solid #aaa;
-    padding:6px;
-    text-align:center;
-  }
+  table { width:100%; border-collapse:collapse; margin-top:12px; font-size:14px; }
+  th, td { border:1px solid #aaa; padding:6px; text-align:center; }
   th { background:#f2f2f2; }
   .red { color:red; font-weight:bold; }
+  .hidden { display:none !important; }
+  .admin-only { border-color:#89b6ff; }
+  .note { font-size:13px; color:#666; line-height:1.5; }
+  .file-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .file-row input[type=file] { flex:1; min-width:230px; }
+  .preview { background:#f7f7f7; border:1px solid #ddd; padding:10px; border-radius:6px; margin-top:10px; white-space:pre-wrap; }
+  .upload-progress { margin-top:10px; padding:10px; border:1px solid #d9e2ef; border-radius:8px; background:#f8fbff; }
+  .upload-progress-row { display:flex; justify-content:space-between; gap:10px; font-size:13px; margin-bottom:6px; }
+  .upload-progress-track { width:100%; height:14px; background:#e9ecef; border-radius:999px; overflow:hidden; }
+  .upload-progress-bar { height:100%; width:0%; background:#218838; transition:width .25s ease; position:relative; overflow:hidden; }
+  .upload-progress-bar.working::after { content:""; position:absolute; inset:0; width:35%; background:rgba(255,255,255,.45); animation:progressMove 1s linear infinite; }
+  @keyframes progressMove { from{ transform:translateX(-120%); } to{ transform:translateX(320%); } }
+  .server-error { background:#fff0f0; color:#b00020; border:1px solid #e4a6ae; padding:10px; border-radius:6px; margin-bottom:15px; }
+  .server-tools { margin-top:14px; border-top:1px solid #dfe7f2; padding-top:14px; }
+  .tool-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-top:10px; }
+  .tool-card { width:100%; min-height:88px; margin:0; padding:12px 8px; background:#f6f8fb; color:#333; border:1px solid #cfd7e3; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; font-weight:bold; }
+  .tool-card:hover { background:#eef4ff; }
+  .tool-card.danger-card { border-color:#e0a0a8; background:#fff6f6; color:#a20f21; }
+  .tool-icon { font-size:26px; line-height:1; }
+  .server-upload-box { margin-top:12px; padding:12px; border:1px solid #ddd; border-radius:8px; background:#fafafa; }
+  @media (max-width:700px){
+    .student-row { align-items:flex-start; flex-wrap:wrap; }
+    table { font-size:12px; }
+    th, td { padding:4px; }
+  }
 
-  .hidden { display:none; }
+  /* 초기 서버 데이터 로딩 오버레이 */
+  #serverLoadingOverlay{
+    position:fixed; inset:0; z-index:9999;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,0.94);
+    backdrop-filter:blur(2px);
+  }
+  #serverLoadingOverlay.hidden{ display:none; }
+  .server-loading-card{
+    width:min(420px, calc(100% - 40px));
+    background:white; border:1px solid #ddd; border-radius:14px;
+    padding:24px 22px; box-shadow:0 10px 30px rgba(0,0,0,0.12);
+    text-align:center;
+  }
+  .server-loading-title{ font-size:20px; font-weight:bold; margin-bottom:10px; }
+  .server-loading-text{ font-size:14px; color:#555; margin-bottom:16px; min-height:20px; }
+  .server-loading-bar{
+    width:100%; height:12px; border-radius:999px; overflow:hidden;
+    background:#ececec;
+  }
+  .server-loading-bar > div{
+    width:35%; height:100%;
+    background:linear-gradient(90deg,#007bff,#65a7ff,#007bff);
+    border-radius:999px;
+    animation:serverLoadingMove 1.1s linear infinite;
+  }
+  @keyframes serverLoadingMove{
+    0%{ transform:translateX(-110%); }
+    100%{ transform:translateX(320%); }
+  }
+
 </style>
 </head>
-
 <body>
+
+<div id="serverLoadingOverlay">
+  <div class="server-loading-card">
+    <div class="server-loading-title">Firebase 처리 중...</div>
+    <div id="serverLoadingText" class="server-loading-text">기존 Firebase 서버를 사용합니다.</div>
+    <div class="server-loading-bar"><div></div></div>
+  </div>
+</div>
 
 <h1>구미남 초2 출석부(1부등록)</h1>
 
-<!-- 학생 등록 -->
-<button onclick="toggleRegisterUI()">학생 등록</button>
-<div id="registerUI" class="hidden box">
+<div class="topbar">
+  <span id="serverStatus" class="status">기존 Firebase 서버 사용 중</span>
+  <span id="adminStatus" class="status"></span>
+  <button id="adminLoginBtn" class="secondary" onclick="showAdminLogin()">관리자 모드</button>
+  <button id="adminLogoutBtn" class="secondary hidden" onclick="adminLogout()">관리자 종료</button>
+</div>
+<div id="serverErrorBox" class="server-error hidden"></div>
+
+<!-- 관리자 로그인 -->
+<div id="adminLoginBox" class="box hidden">
+  <h2>관리자 접속</h2>
+  <label>관리자 비밀번호</label>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <input type="password" id="adminPassword" autocomplete="current-password" onkeydown="if(event.key==='Enter') adminLogin()" style="flex:1;">
+    <button type="button" id="adminPasswordToggleBtn" class="secondary" onclick="toggleAdminPassword()" style="margin-top:5px; white-space:nowrap;">보이기</button>
+  </div>
+  <button onclick="adminLogin()">접속</button>
+  <button class="secondary" onclick="hideAdminLogin()">취소</button>
+  <div class="note">관리자 모드에서 학생/출석 데이터 관리 기능을 사용할 수 있습니다.</div>
+</div>
+
+<!-- 관리자 도구 -->
+<div id="adminPanel" class="box admin-only hidden">
+  <h2>관리자 도구</h2>
+  <button onclick="toggleRegisterUI()">학생 등록</button>
+  <button class="success" onclick="downloadEditTemplate()">출석 입력양식 다운로드</button>
+  <button class="secondary" onclick="toggleServerManager()">🗄️ 서버관리</button>
+
+  <div style="margin-top:14px; border-top:1px solid #eee; padding-top:12px;">
+    <b>출석 Excel 추가/수정</b>
+    <div class="note">양식의 A~C열에는 기존 Firebase 서버에 등록된 전체 학생명단(모든 학년/반/학생)이 들어갑니다. D열부터 날짜를 적고 각 학생 칸에 '출석' 또는 '결석'을 입력하세요. 빈 셀은 무시하며, 기존 서버 출석데이터 전체를 삭제하거나 교체하지 않습니다. 같은 날짜/학생 기록만 갱신하고 새 기록은 추가합니다.</div>
+    <div class="file-row">
+      <input type="file" id="excelUpload" accept=".xlsx,.xls" onchange="previewExcelUpload(event)">
+      <button id="excelApplyBtn" class="success" disabled onclick="applyExcelUpload()">출석 데이터 추가/갱신</button>
+    </div>
+    <div id="excelPreview" class="preview hidden"></div>
+    <div id="excelProgress" class="upload-progress hidden">
+      <div class="upload-progress-row"><b id="excelProgressText">대기 중</b><span id="excelProgressPercent">0%</span></div>
+      <div class="upload-progress-track"><div id="excelProgressBar" class="upload-progress-bar"></div></div>
+    </div>
+  </div>
+
+  <div id="serverManagerPanel" class="server-tools hidden">
+    <h3 style="margin:0 0 6px;">서버관리</h3>
+    <div class="note">백업, 전체 교체, 서버 정리처럼 서버 전체 데이터에 영향을 주는 기능은 이 메뉴에서만 사용합니다.</div>
+
+    <div class="tool-grid">
+      <button class="tool-card" onclick="backupFirebaseServer()">
+        <span class="tool-icon">🔥</span>
+        <span>Firebase 서버 백업</span>
+      </button>
+      <button class="tool-card" onclick="downloadServerBackupExcel()">
+        <span class="tool-icon">📥</span>
+        <span>현재 서버 Excel 백업</span>
+      </button>
+      <button class="tool-card" onclick="document.getElementById('serverFullUpload').click()">
+        <span class="tool-icon">⬆️</span>
+        <span>서버 전체 업로드</span>
+      </button>
+      <button class="tool-card danger-card" onclick="cleanupServerData()">
+        <span class="tool-icon">🧹</span>
+        <span>서버 정리</span>
+      </button>
+    </div>
+
+    <input type="file" id="serverFullUpload" accept=".xlsx,.xls" class="hidden" onchange="previewServerFullUpload(event)">
+    <div id="serverFullUploadBox" class="server-upload-box hidden">
+      <b>서버 전체 업로드</b>
+      <div class="note">Firebase 백업 Excel의 <b>학생명단 / 출석데이터</b> 시트를 이용하여 기존 Firebase 서버 전체 데이터를 교체합니다. 적용 직전에 현재 서버 데이터를 Excel로 자동 백업합니다.</div>
+      <div id="serverFullPreview" class="preview"></div>
+      <button id="serverFullApplyBtn" class="danger" disabled onclick="applyServerFullUpload()">서버 전체 데이터 교체</button>
+      <button class="secondary" onclick="cancelServerFullUpload()">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 학생 등록: 관리자 전용 -->
+<div id="registerUI" class="hidden box admin-only">
   <h2>학년 / 반 / 학생 등록</h2>
   <label>학년</label>
   <input type="text" id="regGrade">
-
   <label>반</label>
   <input type="text" id="regClass">
-
   <label>학생 이름</label>
   <input type="text" id="regStudent">
-
   <button onclick="registerStudent()">등록</button>
 </div>
 
 <!-- 출석 체크 -->
 <div class="box">
   <h2>출석 체크</h2>
-
   <label>날짜 선택 (일요일만)</label>
   <input type="date" id="attDate" onchange="onSelectDate()">
-
   <div id="missingClassBox"></div>
-
   <label>학년 선택</label>
-  <select id="attGrade" onchange="loadClasses()"></select>
-
+  <select id="attGrade" onfocus="ensureAttendanceData()" onchange="loadClasses()"></select>
   <label>반 선택</label>
   <select id="attClass" onchange="loadStudents()"></select>
-
   <div id="studentList"></div>
-
   <button onclick="saveAttendance()">출석 저장</button>
 </div>
 
@@ -129,9 +206,7 @@
 <div class="box">
   <h2>일별 조회</h2>
   <input type="date" id="dailyQuery" onchange="queryDaily()">
-
   <button onclick="downloadDailyExcel()">엑셀 다운로드</button>
-
   <div id="dailyResult"></div>
 </div>
 
@@ -139,29 +214,13 @@
 <div class="box">
   <h2>월별 조회</h2>
   <input type="month" id="monthlyQuery" onchange="queryMonthly()">
-
   <button onclick="downloadMonthlyExcel()">엑셀 다운로드</button>
-
   <div id="monthlyResult"></div>
 </div>
 
-<script type="module">
 
-/* ---------------------------------------
-    Firebase Firestore 설정
---------------------------------------- */
-import { initializeApp } 
-  from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-
-import {
-  getFirestore, doc, setDoc,
-  collection, getDocs,
-  query, where,
-  writeBatch
-} from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
-
-
-const firebaseConfig = {
+<script>
+const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAqOhG9cyAdrEPR_d2xRwJKDreud4mBIpk",
   authDomain: "guminam-70f61.firebaseapp.com",
   projectId: "guminam-70f61",
@@ -171,527 +230,1038 @@ const firebaseConfig = {
   measurementId: "G-7N0PHE3P8Z"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const ADMIN_PASSWORD_HASH = "754e38e3b94dc5051460a9fcf1976f64d49c63e484b4d81c3a6e2fac88468cbd";
+const SERVER_RETRY_COUNT = 3;
+const SERVER_RETRY_DELAY_MS = 700;
 
-/* ---------------------------------------
-    전역 데이터
---------------------------------------- */
 let classes = {};
 let attendance = {};
+let adminToken = "";
+let pendingImport = null;
+let pendingServerFullImport = null;
 
-async function loadAllData() {
-  classes = {};
-  attendance = {};
+let firebasePromise = null;
+let classesLoaded = false;
+let classesLoadingPromise = null;
+const loadedAttendanceDates = new Set();
+const loadedAttendanceMonths = new Set();
+const attendanceLoadingPromises = new Map();
 
-  const cls = await getDocs(collection(db, "classes"));
-  cls.forEach(d => classes[d.id] = d.data().students);
+let serverConnectionState = "ok";
+let lastServerNgMessage = "";
 
-  const att = await getDocs(collection(db, "attendance"));
-  att.forEach(d => attendance[d.id] = d.data());
-
-  loadGradeDropdown();
-}
-await loadAllData();
-
-/* ---------------------------------------
-    UI 도구
---------------------------------------- */
 function $(id){ return document.getElementById(id); }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function esc(v){ return String(v ?? "").replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 
-/* ---------------------------------------
-    학생 등록
---------------------------------------- */
-window.toggleRegisterUI = function(){
-  $("registerUI").classList.toggle("hidden");
+function showServerLoading(message="Firebase 처리 중..."){
+  const o=$("serverLoadingOverlay"), t=$("serverLoadingText");
+  if(t) t.textContent=message;
+  if(o) o.classList.remove("hidden");
+}
+function updateServerLoading(message){ const t=$("serverLoadingText"); if(t) t.textContent=message; }
+function hideServerLoading(){ const o=$("serverLoadingOverlay"); if(o) o.classList.add("hidden"); }
+
+function clearConnectionError(){
+  $("serverErrorBox").textContent="";
+  $("serverErrorBox").classList.add("hidden");
+}
+function markServerOk(message="기존 Firebase 서버 사용 중"){
+  const recovered=serverConnectionState==="ng";
+  serverConnectionState="ok";
+  lastServerNgMessage="";
+  clearConnectionError();
+  $("serverStatus").textContent=message;
+  if(recovered) console.info("[FIREBASE OK] 서버 접속이 정상 복구되었습니다.");
+}
+function markServerNg(error){
+  const msg=error?.message||String(error||"서버 접속 실패");
+  const changed=serverConnectionState!=="ng"||lastServerNgMessage!==msg;
+  serverConnectionState="ng";
+  lastServerNgMessage=msg;
+  $("serverStatus").textContent="Firebase 접속 NG";
+  $("serverErrorBox").textContent=`Firebase 접속 NG: ${msg}`;
+  $("serverErrorBox").classList.remove("hidden");
+  if(changed) console.warn("[FIREBASE NG]",msg);
+}
+function setBusy(message){ $("serverStatus").textContent=message||"처리 중..."; }
+function showError(error){ console.error(error); }
+
+function setExcelProgress(percent,text,working=true){
+  const box=$("excelProgress"), bar=$("excelProgressBar");
+  if(!box||!bar) return;
+  box.classList.remove("hidden");
+  const p=Math.max(0,Math.min(100,Number(percent)||0));
+  bar.style.width=`${p}%`;
+  bar.classList.toggle("working",!!working&&p<100);
+  $("excelProgressText").textContent=text||"처리 중...";
+  $("excelProgressPercent").textContent=`${Math.round(p)}%`;
+}
+function resetExcelProgress(){
+  const box=$("excelProgress"), bar=$("excelProgressBar");
+  if(!box||!bar) return;
+  bar.style.width="0%"; bar.classList.remove("working");
+  $("excelProgressText").textContent="대기 중";
+  $("excelProgressPercent").textContent="0%";
+  box.classList.add("hidden");
 }
 
-window.registerStudent = async function(){
-  const g = $("regGrade").value.trim();
-  const c = $("regClass").value.trim();
-  const s = $("regStudent").value.trim();
-
-  if(!g || !c || !s) return alert("모든 항목을 입력하세요.");
-
-  const key = `${g}-${c}`;
-
-  if(!classes[key]) classes[key] = [];
-  if(!classes[key].includes(s)) classes[key].push(s);
-
-  await setDoc(doc(db, "classes", key), { students: classes[key] });
-
-  alert("등록 완료!");
-  loadGradeDropdown();
-};
-
-/* ---------------------------------------
-    학년 dropbox 채우기 (학생 있는 반만 대상)
---------------------------------------- */
-function loadGradeDropdown(){
-  const sel = $("attGrade");
-  sel.innerHTML = `<option value=''>선택</option>`;
-
-  // 학생이 1명 이상 있는 반만 학년 목록에 반영
-  const grades = [...new Set(
-    Object.keys(classes)
-      .filter(k => Array.isArray(classes[k]) && classes[k].length > 0)
-      .map(k => k.split("-")[0])
-  )];
-
-  grades.forEach(g => sel.innerHTML += `<option value="${g}">${g}</option>`);
-}
-
-/* ---------------------------------------
-    학년 선택 → 반 목록 로드 (학생 있는 반만)
---------------------------------------- */
-window.loadClasses = function(){
-  const g = $("attGrade").value;
-  const sel = $("attClass");
-
-  sel.innerHTML = `<option value="">선택</option>`;
-
-  // 해당 학년이면서, 실제 학생이 1명 이상 있는 반만 표시
-  Object.keys(classes)
-    .filter(k => 
-      k.split("-")[0] === g &&
-      Array.isArray(classes[k]) && classes[k].length > 0
-    )
-    .forEach(k => {
-      const c = k.split("-")[1];
-      sel.innerHTML += `<option value="${c}">${c}</option>`;
-    });
-
-  loadStudents();
-};
-
-/* ---------------------------------------
-    반 선택 → 학생 목록 표시 + 기존 출석 반영
---------------------------------------- */
-window.loadStudents = function(){
-  const g = $("attGrade").value;
-  const c = $("attClass").value;
-  const key = `${g}-${c}`;
-  const date = $("attDate").value;
-
-  const box = $("studentList");
-  if(!classes[key]){ box.innerHTML = ""; return; }
-
-  const dayData = attendance[date]?.[key] || {};
-
-  box.innerHTML = classes[key].map(st => {
-    const prev = dayData[st] || "미체크";
-    return `
-      <div class="student-row">
-        <b>${st}</b>
-        <label><input type="radio" name="st_${st}" value="present"
-          ${prev === "present" ? "checked" : ""}> 출석</label>
-
-        <label><input type="radio" name="st_${st}" value="absent"
-          ${prev === "absent" ? "checked" : ""}> 결석</label>
-
-        <label><input type="radio" name="st_${st}" value="delete"> 
-          ❌ 삭제(명단)
-        </label>
-      </div>
-    `;
-  }).join('');
-};
-
-
-/* ---------------------------------------
-    날짜 선택 (일요일만)
---------------------------------------- */
-window.onSelectDate = function(){
-  const d = new Date($("attDate").value);
-  if(d.getDay() !== 0){
-    alert("일요일만 선택 가능합니다.");
-    $("attDate").value = "";
-    return;
+async function getFirebase(){
+  if(!firebasePromise){
+    firebasePromise=(async()=>{
+      const appMod=await import("https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js");
+      const fsMod=await import("https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js");
+      const app=appMod.getApps().find(a=>a.name==="attendanceFirebaseOnly") ||
+        appMod.initializeApp(FIREBASE_CONFIG,"attendanceFirebaseOnly");
+      return {fsMod,db:fsMod.getFirestore(app)};
+    })();
   }
-  showMissingClasses();
-};
-
-/* ---------------------------------------
-    미체크 반 표시 (학생 없는 반 제외)
---------------------------------------- */
-function showMissingClasses(){
-  const date = $("attDate").value;
-  const box = $("missingClassBox");
-
-  const data = attendance[date] || {};
-
-  // 실제 학생이 1명 이상 있는 반만 대상으로
-  const activeClasses = Object.keys(classes)
-    .filter(k => Array.isArray(classes[k]) && classes[k].length > 0);
-
-  // 🔥 '미체크 반' 판단 로직
-  const missing = activeClasses.filter(key => {
-    const students = classes[key];
-    const dayData = data[key] || {};
-
-    // 학생 중 하나라도 출석/결석 체크가 안 되어 있으면 미체크 처리
-    return students.some(st => {
-      const v = dayData[st];
-      return !(v === "present" || v === "absent" || v === "delete");
-    });
-  });
-
-  if(missing.length === 0){
-    box.innerHTML = "<b>모든 반이 체크되었습니다.</b>";
-    return;
-  }
-
-  box.innerHTML = `
-    <div class='missingBox'>
-      <b>출석 미체크 반:</b><br>
-      ${missing.map(k => 
-        `<div class="clickable" onclick="selectClass('${k}')">${k}</div>`
-      ).join("")}
-    </div>
-  `;
+  return firebasePromise;
 }
 
-window.selectClass = function(key){
-  const [g,c] = key.split("-");
-  $("attGrade").value = g;
-  loadClasses();
-  $("attClass").value = c;
-  loadStudents();
-};
-
-/* ---------------------------------------
-    출석 저장
---------------------------------------- */
-window.saveAttendance = async function(){
-  const date = $("attDate").value;
-  const g = $("attGrade").value;
-  const c = $("attClass").value;
-
-  if(!date || !g || !c) return alert("날짜/학년/반을 입력하세요.");
-
-  const key = `${g}-${c}`;
-
-  if(!classes[key]) return;
-
-  if(!attendance[date]) attendance[date] = {};
-  if(!attendance[date][key]) attendance[date][key] = {};
-
-  const newStudentList = [];
-
-  for(const st of classes[key]){
-
-    const sel = document.querySelector(`input[name="st_${st}"]:checked`);
-    const state = sel ? sel.value : "미체크";
-
-    // 삭제인 경우 → 명단에서 제거
-    if(state === "delete"){
-      const ok = confirm(`${st} 학생을 명단에서 삭제할까요?`);
-      if(ok){
-        // 출석기록에서도 삭제
-        delete attendance[date][key][st];
-        continue; // 명단에도 추가하지 않음
+async function firebaseCall(label,work){
+  let lastError=null;
+  for(let attempt=0; attempt<=SERVER_RETRY_COUNT; attempt++){
+    try{
+      const value=await work();
+      markServerOk();
+      return value;
+    }catch(e){
+      lastError=e;
+      if(attempt<SERVER_RETRY_COUNT){
+        console.info(`[FIREBASE RETRY] ${label} ${attempt+1}/${SERVER_RETRY_COUNT}`);
+        updateServerLoading(`서버 연결 재시도 중 (${attempt+1}/${SERVER_RETRY_COUNT})...`);
+        await sleep(SERVER_RETRY_DELAY_MS);
       }
     }
-
-    // 출결 상태 저장
-    attendance[date][key][st] = state;
-    newStudentList.push(st);
   }
+  markServerNg(lastError);
+  throw lastError||new Error(`${label} 실패`);
+}
 
-  // Firestore 명단 업데이트
-  classes[key] = newStudentList;
-  await setDoc(doc(db, "classes", key), { students: newStudentList });
+/* ---------- Firebase 조회 ---------- */
+async function loadAllFirebaseData(){
+  return firebaseCall("전체 데이터 조회",async()=>{
+    const {fsMod,db}=await getFirebase();
+    const [clsSnap,attSnap]=await Promise.all([
+      fsMod.getDocs(fsMod.collection(db,"classes")),
+      fsMod.getDocs(fsMod.collection(db,"attendance"))
+    ]);
+    const outClasses={}, outAttendance={};
+    clsSnap.forEach(d=>outClasses[d.id]=Array.isArray(d.data()?.students)?d.data().students:[]);
+    attSnap.forEach(d=>outAttendance[d.id]=d.data()||{});
+    return {classes:outClasses,attendance:outAttendance};
+  });
+}
 
-  // 출석 저장
-  await setDoc(doc(db, "attendance", date), attendance[date]);
+async function ensureClassesLoaded(force=false){
+  if(classesLoaded&&!force) return true;
+  if(classesLoadingPromise&&!force) return classesLoadingPromise;
 
-  alert("저장되었습니다!");
+  const job=(async()=>{
+    const data=await firebaseCall("학생명단 조회",async()=>{
+      const {fsMod,db}=await getFirebase();
+      const snap=await fsMod.getDocs(fsMod.collection(db,"classes"));
+      const out={};
+      snap.forEach(d=>out[d.id]=Array.isArray(d.data()?.students)?d.data().students:[]);
+      return out;
+    });
+    classes=data;
+    classesLoaded=true;
+    loadGradeDropdown();
+    markServerOk(`Firebase 연결됨 · 학생 ${rosterRowsFromClasses(classes).length}명`);
+    return true;
+  })();
 
-  loadStudents();        // 명단 새로고침
-  showMissingClasses();  // 미체크 반 갱신
+  classesLoadingPromise=job;
+  try{ return await job; }
+  finally{ if(classesLoadingPromise===job) classesLoadingPromise=null; }
+}
+
+async function loadAttendanceDate(date,force=false){
+  if(!date) return;
+  const month=date.slice(0,7);
+  if(!force&&(loadedAttendanceDates.has(date)||loadedAttendanceMonths.has(month))) return;
+
+  const key=`date:${date}`;
+  if(attendanceLoadingPromises.has(key)&&!force) return attendanceLoadingPromises.get(key);
+
+  const job=(async()=>{
+    attendance[date]=await firebaseCall(`출석 조회 ${date}`,async()=>{
+      const {fsMod,db}=await getFirebase();
+      const snap=await fsMod.getDoc(fsMod.doc(db,"attendance",date));
+      return snap.exists()?(snap.data()||{}):{};
+    });
+    loadedAttendanceDates.add(date);
+  })();
+
+  attendanceLoadingPromises.set(key,job);
+  try{ await job; }
+  finally{ attendanceLoadingPromises.delete(key); }
+}
+
+async function loadAttendanceMonth(month,force=false){
+  if(!month) return;
+  if(!force&&loadedAttendanceMonths.has(month)) return;
+
+  const key=`month:${month}`;
+  if(attendanceLoadingPromises.has(key)&&!force) return attendanceLoadingPromises.get(key);
+
+  const job=(async()=>{
+    const data=await firebaseCall(`월별 출석 조회 ${month}`,async()=>{
+      const {fsMod,db}=await getFirebase();
+      const q=fsMod.query(
+        fsMod.collection(db,"attendance"),
+        fsMod.where(fsMod.documentId(),">=",`${month}-01`),
+        fsMod.where(fsMod.documentId(),"<=",`${month}-31`)
+      );
+      const snap=await fsMod.getDocs(q);
+      const out={};
+      snap.forEach(d=>out[d.id]=d.data()||{});
+      return out;
+    });
+
+    Object.keys(attendance).forEach(d=>{ if(String(d).slice(0,7)===month) delete attendance[d]; });
+    Object.entries(data).forEach(([date,day])=>{
+      attendance[date]=day;
+      loadedAttendanceDates.add(date);
+    });
+    loadedAttendanceMonths.add(month);
+  })();
+
+  attendanceLoadingPromises.set(key,job);
+  try{ await job; }
+  finally{ attendanceLoadingPromises.delete(key); }
+}
+
+async function ensureDateContext(date,message="해당 날짜 출석데이터 불러오는 중..."){
+  showServerLoading(message);
+  try{ await Promise.all([ensureClassesLoaded(),loadAttendanceDate(date)]); }
+  finally{ hideServerLoading(); }
+}
+async function ensureMonthContext(month,message="해당 월 출석데이터 불러오는 중..."){
+  showServerLoading(message);
+  try{ await Promise.all([ensureClassesLoaded(),loadAttendanceMonth(month)]); }
+  finally{ hideServerLoading(); }
+}
+
+window.ensureAttendanceData=async function(){
+  if(classesLoaded) return;
+  showServerLoading("학생명단 불러오는 중...");
+  try{ await ensureClassesLoaded(); }
+  catch(e){ showError(e); }
+  finally{ hideServerLoading(); }
 };
 
-// ✅ batch 500 제한 회피(여유 있게 450개씩)
-async function commitInChunks(db, ops, chunkSize = 450) {
-  for (let i = 0; i < ops.length; i += chunkSize) {
-    const batch = writeBatch(db);
-    ops.slice(i, i + chunkSize).forEach(fn => fn(batch));
-    await batch.commit();
-  }
+function invalidateClassesCache(){ classesLoaded=false; classes={}; }
+function invalidateAttendanceCache(){
+  attendance={};
+  loadedAttendanceDates.clear();
+  loadedAttendanceMonths.clear();
+  attendanceLoadingPromises.clear();
+}
+function invalidateAttendanceDate(date){
+  delete attendance[date];
+  loadedAttendanceDates.delete(date);
+  loadedAttendanceMonths.delete(String(date||"").slice(0,7));
+}
+function invalidateDataCache(){ invalidateClassesCache(); invalidateAttendanceCache(); }
+
+/* ---------- Firebase 쓰기 ---------- */
+async function registerStudentFirebase(grade,className,student){
+  return firebaseCall("학생 등록",async()=>{
+    const {fsMod,db}=await getFirebase();
+    const ref=fsMod.doc(db,"classes",`${grade}-${className}`);
+    const snap=await fsMod.getDoc(ref);
+    const list=Array.isArray(snap.data()?.students)?[...snap.data().students]:[];
+    if(!list.includes(student)) list.push(student);
+    await fsMod.setDoc(ref,{students:list});
+  });
 }
 
-// ✅ "특정 반키(classKey)"가 포함된 attendance 문서만 조회 (가능하면 where, 실패 시 전체 스캔)
-async function getAttendanceDocsHavingClassKey(classKey){
-  let docs = [];
-  try{
-    const q = query(collection(db, "attendance"), where(classKey, "!=", null));
-    const snap = await getDocs(q);
-    snap.forEach(d => docs.push({ id: d.id, data: d.data() }));
-    return docs;
-  }catch(e){
-    console.warn("where 조회 실패 → 전체 스캔 fallback", e);
-    const snapAll = await getDocs(collection(db, "attendance"));
-    snapAll.forEach(d => {
-      const data = d.data();
-      if(data && data[classKey] != null) docs.push({ id: d.id, data });
-    });
-    return docs;
-  }
-}
+async function saveAttendanceFirebase(date,grade,className,states){
+  return firebaseCall("출석 저장",async()=>{
+    const {fsMod,db}=await getFirebase();
+    const key=`${grade}-${className}`;
+    const classRef=fsMod.doc(db,"classes",key);
+    const attRef=fsMod.doc(db,"attendance",date);
+    const [classSnap,attSnap]=await Promise.all([fsMod.getDoc(classRef),fsMod.getDoc(attRef)]);
 
-// ✅ 이름(학생) 기준으로 반 이동(학년/반 수정)
-// - classes: oldKey에서 학생 제거, newKey에 학생 추가
-// - attendance: oldKey가 있는 문서만 찾아서 그 문서 안에서 학생 출석 데이터를 oldKey → newKey로 이동
-window.moveStudentClass = async function(oldKey, studentName){
-  const safeKey = encodeURIComponent(oldKey);
-  const safeName = encodeURIComponent(studentName);
+    let students=Array.isArray(classSnap.data()?.students)?[...classSnap.data().students]:[];
+    const dayData=attSnap.exists()?{...(attSnap.data()||{})}:{};
+    const classData={...(dayData[key]||{})};
 
-  // ✅ queryDaily에서 만든 input id 규칙에 맞춤
-  const gEl = document.getElementById(`mvGrade_${safeKey}_${safeName}`);
-  const cEl = document.getElementById(`mvClass_${safeKey}_${safeName}`);
-  if(!gEl || !cEl) return;
-
-  const newGrade = (gEl.value || "").trim();
-  const newClass = (cEl.value || "").trim();
-  if(!newGrade || !newClass) return alert("학년/반을 입력하세요.");
-
-  const newKey = `${newGrade}-${newClass}`;
-  if(newKey === oldKey){
-    alert("변경 내용이 없습니다.");
-    return;
-  }
-
-  if(!Array.isArray(classes[newKey])) classes[newKey] = [];
-
-  if(classes[newKey].includes(studentName)){
-    return alert(`이동 불가: ${newKey} 반에 이미 '${studentName}'이(가) 있습니다.`);
-  }
-
-  const ok = confirm(`학생 반 이동을 저장할까요?\n${studentName}\n${oldKey} → ${newKey}\n(출석 데이터도 함께 이동합니다)`);
-  if(!ok) return;
-
-  try{
-    // oldKey가 포함된 attendance 문서만 조회
-    const attDocs = await getAttendanceDocsHavingClassKey(oldKey);
-
-    // classes 메모리 이동
-    classes[oldKey] = (classes[oldKey] || []).filter(n => n !== studentName);
-    classes[newKey].push(studentName);
-
-    // attendance 메모리 이동 (oldKey가 있는 문서만)
-    attDocs.forEach(({ id, data }) => {
-      if(!attendance[id]) attendance[id] = data;
-
-      const docData = attendance[id];
-      const oldClassData = docData?.[oldKey];
-      if(!oldClassData) return;
-
-      const v = oldClassData[studentName];
-      if(v == null) return;
-
-      if(!docData[newKey]) docData[newKey] = {};
-      if(docData[newKey][studentName] != null){
-        throw new Error(`출석 데이터 충돌: ${id} 문서의 ${newKey}에 이미 ${studentName} 기록이 존재합니다.`);
+    states.forEach(x=>{
+      const student=String(x.student||"").trim();
+      if(!student) return;
+      if(x.state==="delete"){
+        students=students.filter(n=>n!==student);
+        delete classData[student];
+      }else{
+        if(!students.includes(student)) students.push(student);
+        classData[student]=x.state;
       }
-
-      docData[newKey][studentName] = v;
-      delete oldClassData[studentName];
     });
 
-    // Firestore 업데이트 ops 구성
-    const ops = [];
-    ops.push(b => b.set(doc(db, "classes", oldKey), { students: classes[oldKey] || [] }));
-    ops.push(b => b.set(doc(db, "classes", newKey), { students: classes[newKey] || [] }));
-    attDocs.forEach(({ id }) => {
-      ops.push(b => b.set(doc(db, "attendance", id), attendance[id]));
+    dayData[key]=classData;
+    await Promise.all([
+      fsMod.setDoc(classRef,{students}),
+      fsMod.setDoc(attRef,dayData)
+    ]);
+  });
+}
+
+async function moveStudentFirebase(oldKey,newGrade,newClass,student){
+  return firebaseCall("학생 반 이동",async()=>{
+    const {fsMod,db}=await getFirebase();
+    const newKey=`${newGrade}-${newClass}`;
+    const oldRef=fsMod.doc(db,"classes",oldKey);
+    const newRef=fsMod.doc(db,"classes",newKey);
+    const [oldSnap,newSnap,attSnap]=await Promise.all([
+      fsMod.getDoc(oldRef),
+      fsMod.getDoc(newRef),
+      fsMod.getDocs(fsMod.collection(db,"attendance"))
+    ]);
+
+    let oldList=Array.isArray(oldSnap.data()?.students)?[...oldSnap.data().students]:[];
+    let newList=Array.isArray(newSnap.data()?.students)?[...newSnap.data().students]:[];
+    oldList=oldList.filter(n=>n!==student);
+    if(!newList.includes(student)) newList.push(student);
+
+    const updates=[
+      {ref:oldRef,data:{students:oldList}},
+      {ref:newRef,data:{students:newList}}
+    ];
+
+    attSnap.forEach(d=>{
+      const docData={...(d.data()||{})};
+      const oldClassData={...(docData[oldKey]||{})};
+      if(!(student in oldClassData)) return;
+      const value=oldClassData[student];
+      delete oldClassData[student];
+      const newClassData={...(docData[newKey]||{})};
+      newClassData[student]=value;
+      docData[oldKey]=oldClassData;
+      docData[newKey]=newClassData;
+      updates.push({ref:d.ref,data:docData});
     });
 
-    await commitInChunks(db, ops, 450);
+    for(let i=0;i<updates.length;i+=400){
+      const batch=fsMod.writeBatch(db);
+      updates.slice(i,i+400).forEach(x=>batch.set(x.ref,x.data));
+      await batch.commit();
+    }
+  });
+}
 
-    alert(`저장 완료!\n${studentName}\n${oldKey} → ${newKey}\n(업데이트 문서 수: ${attDocs.length})`);
+async function upsertAttendanceRowsFirebase(rows){
+  return firebaseCall("Excel 출석 업로드",async()=>{
+    if(!Array.isArray(rows)||!rows.length) return {insertedCount:0,updatedCount:0};
+    const {fsMod,db}=await getFirebase();
+    const byDate=new Map();
+    rows.forEach(r=>{
+      if(!byDate.has(r.date)) byDate.set(r.date,[]);
+      byDate.get(r.date).push(r);
+    });
 
-    loadGradeDropdown();
-    if(document.getElementById("dailyQuery")?.value) queryDaily();
+    let insertedCount=0,updatedCount=0;
+    const changes=[];
+    for(const [date,dateRows] of byDate){
+      const ref=fsMod.doc(db,"attendance",date);
+      const snap=await fsMod.getDoc(ref);
+      const dayData=snap.exists()?{...(snap.data()||{})}:{};
+
+      dateRows.forEach(r=>{
+        const ck=`${r.grade}-${r.className}`;
+        const classData={...(dayData[ck]||{})};
+        if(Object.prototype.hasOwnProperty.call(classData,r.student)) updatedCount++;
+        else insertedCount++;
+        classData[r.student]=r.state;
+        dayData[ck]=classData;
+      });
+      changes.push({ref,data:dayData});
+    }
+
+    for(let i=0;i<changes.length;i+=400){
+      const batch=fsMod.writeBatch(db);
+      changes.slice(i,i+400).forEach(x=>batch.set(x.ref,x.data));
+      await batch.commit();
+    }
+    return {insertedCount,updatedCount};
+  });
+}
+
+async function replaceAllFirebaseData(roster,attendanceRows){
+  return firebaseCall("서버 전체 업로드",async()=>{
+    const {fsMod,db}=await getFirebase();
+    const [clsSnap,attSnap]=await Promise.all([
+      fsMod.getDocs(fsMod.collection(db,"classes")),
+      fsMod.getDocs(fsMod.collection(db,"attendance"))
+    ]);
+    const ops=[];
+    clsSnap.forEach(d=>ops.push({type:"delete",ref:d.ref}));
+    attSnap.forEach(d=>ops.push({type:"delete",ref:d.ref}));
+
+    const byClass=new Map();
+    roster.forEach(r=>{
+      const key=`${r.grade}-${r.className}`;
+      if(!byClass.has(key)) byClass.set(key,[]);
+      const arr=byClass.get(key);
+      if(!arr.includes(r.student)) arr.push(r.student);
+    });
+    for(const [key,students] of byClass) ops.push({type:"set",ref:fsMod.doc(db,"classes",key),data:{students}});
+
+    const byDate={};
+    attendanceRows.forEach(r=>{
+      if(!byDate[r.date]) byDate[r.date]={};
+      const ck=`${r.grade}-${r.className}`;
+      if(!byDate[r.date][ck]) byDate[r.date][ck]={};
+      byDate[r.date][ck][r.student]=r.state;
+    });
+    Object.entries(byDate).forEach(([date,data])=>ops.push({type:"set",ref:fsMod.doc(db,"attendance",date),data}));
+
+    for(let i=0;i<ops.length;i+=400){
+      const batch=fsMod.writeBatch(db);
+      ops.slice(i,i+400).forEach(op=>op.type==="delete"?batch.delete(op.ref):batch.set(op.ref,op.data));
+      await batch.commit();
+    }
+    return {rosterCount:roster.length,attendanceCount:attendanceRows.length};
+  });
+}
+
+/* ---------- 관리자 ---------- */
+async function sha256Hex(text){
+  const data=new TextEncoder().encode(text);
+  const hash=await crypto.subtle.digest("SHA-256",data);
+  return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+window.showAdminLogin=function(){ $("adminLoginBox").classList.remove("hidden"); $("adminPassword").focus(); };
+window.hideAdminLogin=function(){
+  $("adminLoginBox").classList.add("hidden");
+  $("adminPassword").value="";
+  $("adminPassword").type="password";
+  $("adminPasswordToggleBtn").textContent="보이기";
+};
+window.toggleAdminPassword=function(){
+  const input=$("adminPassword"),btn=$("adminPasswordToggleBtn");
+  const show=input.type==="password";
+  input.type=show?"text":"password";
+  btn.textContent=show?"숨기기":"보이기";
+};
+window.adminLogin=async function(){
+  const password=$("adminPassword").value;
+  if(!password) return alert("비밀번호를 입력하세요.");
+  if(await sha256Hex(password)!==ADMIN_PASSWORD_HASH) return alert("관리자 비밀번호가 올바르지 않습니다.");
+
+  adminToken="firebase-admin";
+  $("adminStatus").textContent="관리자 접속 중";
+  $("adminStatus").className="status admin-badge";
+  $("adminPanel").classList.remove("hidden");
+  $("adminLoginBtn").classList.add("hidden");
+  $("adminLogoutBtn").classList.remove("hidden");
+  hideAdminLogin();
+};
+window.adminLogout=function(){
+  adminToken="";
+  pendingImport=null;
+  pendingServerFullImport=null;
+  $("adminStatus").textContent="";
+  $("adminPanel").classList.add("hidden");
+  $("registerUI").classList.add("hidden");
+  $("serverManagerPanel").classList.add("hidden");
+  $("serverFullUploadBox").classList.add("hidden");
+  $("serverFullUpload").value="";
+  $("adminLoginBtn").classList.remove("hidden");
+  $("adminLogoutBtn").classList.add("hidden");
+  $("excelApplyBtn").disabled=true;
+  $("excelPreview").classList.add("hidden");
+};
+function requireAdminLocal(){
+  if(!adminToken){ alert("관리자 모드로 접속하세요."); return false; }
+  return true;
+}
+window.toggleServerManager=function(){ if(requireAdminLocal()) $("serverManagerPanel").classList.toggle("hidden"); };
+window.toggleRegisterUI=function(){ if(requireAdminLocal()) $("registerUI").classList.toggle("hidden"); };
+
+/* ---------- 학생 등록 ---------- */
+window.registerStudent=async function(){
+  if(!requireAdminLocal()) return;
+  const g=$("regGrade").value.trim(),c=$("regClass").value.trim(),s=$("regStudent").value.trim();
+  if(!g||!c||!s) return alert("모든 항목을 입력하세요.");
+  try{
+    setBusy("Firebase 학생 등록 중...");
+    await registerStudentFirebase(g,c,s);
+    $("regStudent").value="";
+    invalidateClassesCache();
+    showServerLoading("학생명단 갱신 중...");
+    try{ await ensureClassesLoaded(true); }finally{ hideServerLoading(); }
+    alert("등록 완료!");
+  }catch(e){ showError(e); alert(e?.message||e); }
+};
+
+/* ---------- 학년/반/학생 ---------- */
+function naturalCompare(a,b){
+  const an=Number(a),bn=Number(b),ai=!Number.isNaN(an)&&String(a)!=="",bi=!Number.isNaN(bn)&&String(b)!=="";
+  if(ai&&bi) return an-bn;
+  return String(a).localeCompare(String(b),"ko",{numeric:true});
+}
+function loadGradeDropdown(){
+  const sel=$("attGrade"),old=sel.value;
+  sel.innerHTML=`<option value=''>선택</option>`;
+  const grades=[...new Set(Object.keys(classes).filter(k=>Array.isArray(classes[k])&&classes[k].length>0).map(k=>k.split("-")[0]))].sort(naturalCompare);
+  grades.forEach(g=>sel.insertAdjacentHTML("beforeend",`<option value="${esc(g)}">${esc(g)}</option>`));
+  if(grades.includes(old)) sel.value=old;
+  loadClasses();
+}
+window.loadClasses=function(){
+  const g=$("attGrade").value,sel=$("attClass"),old=sel.value;
+  sel.innerHTML=`<option value="">선택</option>`;
+  const list=Object.keys(classes)
+    .filter(k=>k.split("-")[0]===g&&Array.isArray(classes[k])&&classes[k].length>0)
+    .map(k=>k.split("-").slice(1).join("-")).sort(naturalCompare);
+  list.forEach(c=>sel.insertAdjacentHTML("beforeend",`<option value="${esc(c)}">${esc(c)}</option>`));
+  if(list.includes(old)) sel.value=old;
+  loadStudents();
+};
+window.loadStudents=function(){
+  const g=$("attGrade").value,c=$("attClass").value,key=`${g}-${c}`,date=$("attDate").value,box=$("studentList");
+  if(!classes[key]){ box.innerHTML=""; return; }
+  const day=attendance[date]?.[key]||{};
+  box.innerHTML=classes[key].map(st=>{
+    const prev=day[st]||"미체크";
+    return `<div class="student-row">
+      <b>${esc(st)}</b>
+      <label><input type="radio" name="st_${esc(st)}" value="present" ${prev==="present"?"checked":""}> 출석</label>
+      <label><input type="radio" name="st_${esc(st)}" value="absent" ${prev==="absent"?"checked":""}> 결석</label>
+      ${adminToken?`<label><input type="radio" name="st_${esc(st)}" value="delete"> ❌ 삭제(명단)</label>`:""}
+    </div>`;
+  }).join("");
+};
+
+window.onSelectDate=async function(){
+  const date=$("attDate").value;
+  if(!date) return;
+  const d=new Date(`${date}T00:00:00`);
+  if(d.getDay()!==0){ alert("일요일만 선택 가능합니다."); $("attDate").value=""; return; }
+  try{
+    await ensureDateContext(date,"선택 날짜 출석데이터 불러오는 중...");
     showMissingClasses();
     loadStudents();
-
-  }catch(ex){
-    console.error(ex);
-    alert("반 이동 저장 중 오류가 발생했습니다.\n(콘솔 로그 확인)");
-  }
+  }catch(e){ showError(e); }
 };
 
-
-
-/* ---------------------------------------
-    일별 조회
---------------------------------------- */
-/* ---------------------------------------
-    일별 조회 (학년-반 순서 + 이름 오른쪽)
---------------------------------------- */
-window.queryDaily = function(){
-  const date = $("dailyQuery").value;
-  const box = $("dailyResult");
-  const data = attendance[date] || {};
-
-  if(!date){
-    box.innerHTML = "";
-    return;
-  }
-
-  // (반키, 학생이름) 형태로 펼치기
-  const rows = [];
-  Object.keys(classes).forEach(classKey => {
-    const list = classes[classKey] || [];
-    list.forEach(name => rows.push({ name, classKey }));
+function classKeyCompare(a,b){
+  const [ag,...acp]=String(a).split("-"),[bg,...bcp]=String(b).split("-");
+  const r=naturalCompare(ag,bg);
+  if(r!==0) return r;
+  return naturalCompare(acp.join("-"),bcp.join("-"));
+}
+function showMissingClasses(){
+  const date=$("attDate").value,box=$("missingClassBox");
+  if(!date){ box.innerHTML=""; return; }
+  const data=attendance[date]||{};
+  const active=Object.keys(classes).filter(k=>Array.isArray(classes[k])&&classes[k].length>0).sort(classKeyCompare);
+  const missing=active.filter(key=>{
+    const day=data[key]||{};
+    return classes[key].some(st=>!["present","absent"].includes(day[st]));
   });
-
-  // ✅ 학년→반→이름 순서 정렬
-  rows.sort((a, b) => {
-    const [ag, ac] = String(a.classKey).split("-");
-    const [bg, bc] = String(b.classKey).split("-");
-
-    // 숫자 가능하면 숫자 정렬, 아니면 문자열 정렬
-    const agn = Number(ag), acn = Number(ac);
-    const bgn = Number(bg), bcn = Number(bc);
-
-    const agIsNum = !Number.isNaN(agn) && ag !== "";
-    const bgIsNum = !Number.isNaN(bgn) && bg !== "";
-    if(agIsNum && bgIsNum && agn !== bgn) return agn - bgn;
-    if(!(agIsNum && bgIsNum)){
-      const r = String(ag).localeCompare(String(bg), "ko");
-      if(r !== 0) return r;
-    }
-
-    const acIsNum = !Number.isNaN(acn) && ac !== "";
-    const bcIsNum = !Number.isNaN(bcn) && bc !== "";
-    if(acIsNum && bcIsNum && acn !== bcn) return acn - bcn;
-    if(!(acIsNum && bcIsNum)){
-      const r = String(ac).localeCompare(String(bc), "ko");
-      if(r !== 0) return r;
-    }
-
-    return String(a.name).localeCompare(String(b.name), "ko");
-  });
-
-  // ✅ html 시작
-  let html = `
-    <table>
-      <tr>
-        <th style="width:18%;">현재 학년-반</th>
-        <th style="width:20%;">변경 학년</th>
-        <th style="width:20%;">변경 반</th>
-        <th style="width:10%;">상태</th>
-        <th style="width:10%;">저장</th>
-        <th style="width:22%;">이름</th>
-      </tr>
-  `;
-
-  rows.forEach(r => {
-    const name = r.name;
-    const oldKey = r.classKey;
-
-    const [g0, c0] = String(oldKey).split("-");
-    const safeKey = encodeURIComponent(oldKey);
-    const safeName = encodeURIComponent(name);
-
-    // 상태 표시
-    let v = data[oldKey]?.[name] || "미체크";
-    if(v === "present") v = "출석";
-    else if(v === "absent") v = "<span class='red'>결석</span>";
-    else if(v === "delete") v = "<span class='red'>삭제</span>";
-    else v = "<span class='red'>미체크</span>";
-
-    html += `
-      <tr>
-        <td>${oldKey}</td>
-
-        <td>
-          <input id="mvGrade_${safeKey}_${safeName}" value="${g0 || ""}" style="width:100%;">
-        </td>
-
-        <td>
-          <input id="mvClass_${safeKey}_${safeName}" value="${c0 || ""}" style="width:100%;">
-        </td>
-
-        <td>${v}</td>
-
-        <td>
-          <button onclick="moveStudentClass('${oldKey}', '${name}')">저장</button>
-        </td>
-
-        <td><b>${name}</b></td>
-      </tr>
-    `;
-  });
-
-  html += `</table>`;
-  box.innerHTML = html;
+  if(!missing.length){ box.innerHTML="<b>모든 반이 체크되었습니다.</b>"; return; }
+  box.innerHTML=`<div class='missingBox'><b>출석 미체크 반:</b><br>${missing.map(k=>`<div class="clickable" onclick="selectClass('${esc(k)}')">${esc(k)}</div>`).join("")}</div>`;
+}
+window.selectClass=function(key){
+  const p=key.split("-"),g=p.shift(),c=p.join("-");
+  $("attGrade").value=g; loadClasses(); $("attClass").value=c; loadStudents();
 };
 
+window.saveAttendance=async function(){
+  const date=$("attDate").value,g=$("attGrade").value,c=$("attClass").value,key=`${g}-${c}`;
+  if(!date||!g||!c) return alert("날짜/학년/반을 입력하세요.");
+  if(!classes[key]) return;
 
+  const states=[];
+  for(const st of classes[key]){
+    const radios=[...document.getElementsByName(`st_${st}`)];
+    const sel=radios.find(x=>x.checked);
+    let state=sel?sel.value:"미체크";
+    if(state==="delete"&&!adminToken) return alert("학생 삭제는 관리자 모드에서만 가능합니다.");
+    if(state==="delete"&&!confirm(`${st} 학생을 명단에서 삭제할까요?`)) state="미체크";
+    states.push({student:st,state});
+  }
 
-/* ---------------------------------------
-    월별 조회
---------------------------------------- */
-window.queryMonthly = function(){
-  const m = $("monthlyQuery").value;
-  const year = m.split("-")[0];
-  const month = Number(m.split("-")[1]);
+  try{
+    setBusy("Firebase 출석 저장 중...");
+    await saveAttendanceFirebase(date,g,c,states);
+    if(states.some(x=>x.state==="delete")){
+      invalidateClassesCache();
+      await ensureClassesLoaded(true);
+    }
+    invalidateAttendanceDate(date);
+    await loadAttendanceDate(date,true);
+    $("attGrade").value=g; loadClasses(); $("attClass").value=c; loadStudents(); showMissingClasses();
+    alert("저장되었습니다!");
+  }catch(e){ showError(e); alert(e?.message||e); }
+};
 
-  const days = [];
+/* ---------- 일별 조회 / 반 이동 ---------- */
+window.moveStudentClass=async function(oldKey,studentName){
+  if(!requireAdminLocal()) return;
+  const safeKey=encodeURIComponent(oldKey),safeName=encodeURIComponent(studentName);
+  const gEl=document.getElementById(`mvGrade_${safeKey}_${safeName}`),cEl=document.getElementById(`mvClass_${safeKey}_${safeName}`);
+  if(!gEl||!cEl) return;
+  const newGrade=(gEl.value||"").trim(),newClass=(cEl.value||"").trim();
+  if(!newGrade||!newClass) return alert("학년/반을 입력하세요.");
+  const newKey=`${newGrade}-${newClass}`;
+  if(newKey===oldKey) return alert("변경 내용이 없습니다.");
+  if(!confirm(`학생 반 이동을 저장할까요?\n${studentName}\n${oldKey} → ${newKey}\n(과거 출석 데이터도 함께 이동합니다)`)) return;
 
+  try{
+    setBusy("Firebase 학생 반 이동 중...");
+    await moveStudentFirebase(oldKey,newGrade,newClass,studentName);
+    invalidateDataCache();
+    if($("dailyQuery").value) await queryDaily();
+    if($("attDate").value) await onSelectDate();
+    alert(`저장 완료!\n${studentName}\n${oldKey} → ${newKey}`);
+  }catch(e){ showError(e); alert(e?.message||e); }
+};
+
+window.queryDaily=async function(){
+  const date=$("dailyQuery").value,box=$("dailyResult");
+  if(!date){ box.innerHTML=""; return; }
+  try{ await ensureDateContext(date,"일별 출석데이터 불러오는 중..."); }catch(e){ return; }
+
+  const data=attendance[date]||{},rows=[];
+  Object.keys(classes).forEach(classKey=>(classes[classKey]||[]).forEach(name=>rows.push({name,classKey})));
+  rows.sort((a,b)=>classKeyCompare(a.classKey,b.classKey)||String(a.name).localeCompare(String(b.name),"ko"));
+
+  let html=`<table><tr><th>현재 학년-반</th>${adminToken?"<th>변경 학년</th><th>변경 반</th>":""}<th>상태</th>${adminToken?"<th>저장</th>":""}<th>이름</th></tr>`;
+  rows.forEach(r=>{
+    const [g0,...c0p]=r.classKey.split("-"),c0=c0p.join("-");
+    const safeKey=encodeURIComponent(r.classKey),safeName=encodeURIComponent(r.name);
+    let v=data[r.classKey]?.[r.name]||"미체크";
+    if(v==="present") v="출석";
+    else if(v==="absent") v="<span class='red'>결석</span>";
+    else v="<span class='red'>미체크</span>";
+    html+=`<tr><td>${esc(r.classKey)}</td>`;
+    if(adminToken){
+      html+=`<td><input id="mvGrade_${safeKey}_${safeName}" value="${esc(g0)}"></td>
+             <td><input id="mvClass_${safeKey}_${safeName}" value="${esc(c0)}"></td>`;
+    }
+    html+=`<td>${v}</td>`;
+    if(adminToken) html+=`<td><button onclick="moveStudentClass('${esc(r.classKey)}','${esc(r.name)}')">저장</button></td>`;
+    html+=`<td><b>${esc(r.name)}</b></td></tr>`;
+  });
+  box.innerHTML=html+"</table>";
+};
+
+window.queryMonthly=async function(){
+  const m=$("monthlyQuery").value;
+  if(!m){ $("monthlyResult").innerHTML=""; return; }
+  try{ await ensureMonthContext(m,"월별 출석데이터 불러오는 중..."); }catch(e){ return; }
+
+  const month=Number(m.split("-")[1]),days=[];
   for(let i=1;i<=31;i++){
-    const d = new Date(`${m}-${String(i).padStart(2,'0')}`);
-    if(d.getMonth()+1 !== month) continue;
-    if(d.getDay() === 0)
-      days.push(`${m}-${String(i).padStart(2,'0')}`);
+    const date=`${m}-${String(i).padStart(2,"0")}`;
+    const d=new Date(`${date}T00:00:00`);
+    if(d.getMonth()+1!==month) continue;
+    if(d.getDay()===0) days.push(date);
   }
 
-  let html = `<table><tr><th>학년-반/학생</th>`;
-  days.forEach(d => html += `<th>${d}</th>`);
-  html += "</tr>";
-
-  Object.keys(classes).forEach(key=>{
-    classes[key].forEach(st=>{
-      html += `<tr><td>${key}/${st}</td>`;
+  let html=`<table><tr><th>학년-반/학생</th>`;
+  days.forEach(d=>html+=`<th>${d}</th>`);
+  html+="</tr>";
+  Object.keys(classes).sort(classKeyCompare).forEach(key=>{
+    (classes[key]||[]).forEach(st=>{
+      html+=`<tr><td>${esc(key)}/${esc(st)}</td>`;
       days.forEach(day=>{
-        let v = attendance[day]?.[key]?.[st] || "미체크";
-
+        let v=attendance[day]?.[key]?.[st]||"미체크";
         if(v==="present") v="출석";
         else if(v==="absent") v="<span class='red'>결석</span>";
-        else if(v==="delete") v="<span class='red'>삭제</span>";
         else v="<span class='red'>미체크</span>";
-
-        html += `<td>${v}</td>`;
+        html+=`<td>${v}</td>`;
       });
-      html += "</tr>";
+      html+="</tr>";
+    });
+  });
+  $("monthlyResult").innerHTML=html+"</table>";
+};
+
+/* ---------- 일반 Excel 다운로드 ---------- */
+window.downloadDailyExcel=function(){
+  const table=document.querySelector("#dailyResult table");
+  if(!table) return alert("조회 후 다운로드 가능합니다.");
+  const wb=XLSX.utils.table_to_book(table,{sheet:"일별 조회"});
+  XLSX.writeFile(wb,"attendance_daily.xlsx");
+};
+window.downloadMonthlyExcel=function(){
+  const table=document.querySelector("#monthlyResult table");
+  if(!table) return alert("조회 후 다운로드 가능합니다.");
+  const wb=XLSX.utils.table_to_book(table,{sheet:"월별 조회"});
+  XLSX.writeFile(wb,"attendance_monthly.xlsx");
+};
+
+/* ---------- Excel 공통 ---------- */
+function rosterRowsFromClasses(sourceClasses){
+  const rows=[];
+  Object.keys(sourceClasses||{}).sort(classKeyCompare).forEach(key=>{
+    const p=String(key).split("-"),grade=p.shift(),className=p.join("-");
+    (sourceClasses[key]||[]).forEach(student=>rows.push({grade,className,student}));
+  });
+  return rows;
+}
+function countAttendanceRecords(sourceAttendance){
+  let n=0;
+  Object.values(sourceAttendance||{}).forEach(day=>Object.values(day||{}).forEach(classData=>n+=Object.keys(classData||{}).length));
+  return n;
+}
+function stateKo(v){ return v==="present"?"출석":v==="absent"?"결석":"미체크"; }
+function normalizeState(v){
+  const s=String(v??"").trim().toLowerCase();
+  if(["출석","present","p"].includes(s)) return "present";
+  if(["결석","absent","a"].includes(s)) return "absent";
+  if(["미체크","unchecked","미입력"].includes(s)) return "미체크";
+  return null;
+}
+function buildBackupWorkbook(sourceClasses,sourceAttendance){
+  const roster=[["학년","반","학생이름"]];
+  rosterRowsFromClasses(sourceClasses).forEach(r=>roster.push([r.grade,r.className,r.student]));
+  const att=[["날짜","학년","반","학생이름","상태"]];
+  Object.keys(sourceAttendance||{}).sort().forEach(date=>{
+    Object.keys(sourceAttendance[date]||{}).sort(classKeyCompare).forEach(key=>{
+      const p=key.split("-"),grade=p.shift(),className=p.join("-");
+      Object.entries(sourceAttendance[date][key]||{}).forEach(([student,state])=>att.push([date,grade,className,student,stateKo(state)]));
+    });
+  });
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(roster),"학생명단");
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(att),"출석데이터");
+  return wb;
+}
+function getCurrentMonthSundays(){
+  const now=new Date(),year=now.getFullYear(),month=now.getMonth(),days=[];
+  for(let d=1;d<=31;d++){
+    const dt=new Date(year,month,d);
+    if(dt.getMonth()!==month) break;
+    if(dt.getDay()===0) days.push(dt);
+  }
+  return days;
+}
+function formatMatrixHeaderDate(dt){ return `${String(dt.getMonth()+1).padStart(2,"0")}월 ${String(dt.getDate()).padStart(2,"0")}일`; }
+function buildAttendanceInputWorkbook(sourceClasses){
+  const days=getCurrentMonthSundays(),rows=[["학년","반","학생이름",...days.map(formatMatrixHeaderDate)]];
+  rosterRowsFromClasses(sourceClasses).forEach(r=>rows.push([r.grade,r.className,r.student,...days.map(()=>"" )]));
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  const settings=[["항목","값"],["기준연도",new Date().getFullYear()]];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"출석입력");
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(settings),"설정");
+  return wb;
+}
+function dateToYmd(dt){ return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`; }
+function parseBackupDate(v){
+  if(v instanceof Date&&!Number.isNaN(v.getTime())) return dateToYmd(v);
+  if(typeof v==="number"){
+    const o=XLSX.SSF.parse_date_code(v);
+    if(o) return `${o.y}-${String(o.m).padStart(2,"0")}-${String(o.d).padStart(2,"0")}`;
+  }
+  const s=String(v??"").trim().replace(/[./]/g,"-");
+  const m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  return m?`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`:null;
+}
+function parseMatrixDateHeader(v,baseYear){
+  if(v instanceof Date&&!Number.isNaN(v.getTime())) return dateToYmd(v);
+  if(typeof v==="number"){
+    const o=XLSX.SSF.parse_date_code(v);
+    if(o) return `${o.y}-${String(o.m).padStart(2,"0")}-${String(o.d).padStart(2,"0")}`;
+  }
+  const s=String(v??"").trim();
+  if(!s) return null;
+  let m=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if(m) return `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
+  m=s.match(/^(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일$/);
+  if(m) return `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
+  m=s.match(/^(\d{1,2})\s*월\s*(\d{1,2})\s*일$/);
+  if(m) return `${baseYear}-${m[1].padStart(2,"0")}-${m[2].padStart(2,"0")}`;
+  return null;
+}
+function getWorkbookBaseYear(wb){
+  const sh=wb.Sheets["설정"]; if(!sh) return new Date().getFullYear();
+  const rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:""});
+  for(const r of rows){
+    if(String(r[0]).trim()==="기준연도"){
+      const y=Number(r[1]); if(y>=2000&&y<=2100) return y;
+    }
+  }
+  return new Date().getFullYear();
+}
+
+/* ---------- 관리자 Excel/서버 관리 ---------- */
+window.downloadEditTemplate=async function(){
+  if(!requireAdminLocal()) return;
+  try{
+    showServerLoading("전체 학생명단 불러오는 중...");
+    await ensureClassesLoaded(true);
+    const wb=buildAttendanceInputWorkbook(classes);
+    XLSX.writeFile(wb,`출석입력양식_${new Date().toISOString().slice(0,10)}.xlsx`);
+  }catch(e){ showError(e); alert(e?.message||e); }
+  finally{ hideServerLoading(); }
+};
+
+window.backupFirebaseServer=async function(){
+  if(!requireAdminLocal()) return;
+  try{
+    showServerLoading("Firebase 전체 데이터 백업 중...");
+    const data=await loadAllFirebaseData();
+    const wb=buildBackupWorkbook(data.classes,data.attendance);
+    const stamp=new Date().toISOString().replace(/[-:T]/g,"").slice(0,14);
+    XLSX.writeFile(wb,`Firebase_출석부_전체백업_${stamp}.xlsx`);
+    alert(`Firebase 백업 완료!\n학생 ${rosterRowsFromClasses(data.classes).length}명\n출석 ${countAttendanceRecords(data.attendance)}건`);
+  }catch(e){ showError(e); alert(e?.message||e); }
+  finally{ hideServerLoading(); }
+};
+window.downloadServerBackupExcel=window.backupFirebaseServer;
+
+window.previewServerFullUpload=async function(event){
+  if(!requireAdminLocal()){ event.target.value=""; return; }
+  pendingServerFullImport=null;
+  $("serverFullApplyBtn").disabled=true;
+  $("serverFullUploadBox").classList.remove("hidden");
+  const file=event.target.files?.[0]; if(!file) return;
+
+  try{
+    const buf=await file.arrayBuffer(),wb=XLSX.read(buf,{type:"array",cellDates:true});
+    const rosterSheet=wb.Sheets["학생명단"],attSheet=wb.Sheets["출석데이터"];
+    if(!rosterSheet||!attSheet) throw new Error("'학생명단'과 '출석데이터' 시트가 필요합니다.");
+
+    const rosterRows=XLSX.utils.sheet_to_json(rosterSheet,{header:1,defval:""});
+    const attRows=XLSX.utils.sheet_to_json(attSheet,{header:1,defval:""});
+    const roster=[],attendanceRows=[],errors=[],rosterSet=new Set(),attSet=new Set();
+
+    for(let i=1;i<rosterRows.length;i++){
+      const r=rosterRows[i]||[],g=String(r[0]??"").trim(),c=String(r[1]??"").trim(),st=String(r[2]??"").trim();
+      if(!g&&!c&&!st) continue;
+      if(!g||!c||!st){ errors.push(`학생명단 ${i+1}행: 학년/반/학생이름 누락`); continue; }
+      const k=`${g}\u0001${c}\u0001${st}`;
+      if(rosterSet.has(k)){ errors.push(`학생명단 ${i+1}행: 중복 ${g}-${c}/${st}`); continue; }
+      rosterSet.add(k); roster.push({grade:g,className:c,student:st});
+    }
+
+    for(let i=1;i<attRows.length;i++){
+      const r=attRows[i]||[],date=parseBackupDate(r[0]),g=String(r[1]??"").trim(),c=String(r[2]??"").trim(),st=String(r[3]??"").trim(),state=normalizeState(r[4]);
+      if(!date&&!g&&!c&&!st&&!String(r[4]??"").trim()) continue;
+      if(!date||!g||!c||!st||!state){ errors.push(`출석데이터 ${i+1}행: 필수값 또는 상태 형식 오류`); continue; }
+      if(!rosterSet.has(`${g}\u0001${c}\u0001${st}`)){ errors.push(`출석데이터 ${i+1}행: 학생명단에 없는 학생 ${g}-${c}/${st}`); continue; }
+      const k=`${date}\u0001${g}\u0001${c}\u0001${st}`;
+      if(attSet.has(k)){ errors.push(`출석데이터 ${i+1}행: 중복 ${date}/${g}-${c}/${st}`); continue; }
+      attSet.add(k); attendanceRows.push({date,grade:g,className:c,student:st,state});
+    }
+
+    const preview=$("serverFullPreview");
+    if(errors.length){
+      preview.textContent=`검증 실패 (${errors.length}건)\n\n${errors.slice(0,40).join("\n")}${errors.length>40?`\n... 외 ${errors.length-40}건`:""}`;
+      return;
+    }
+
+    pendingServerFullImport={roster,attendance:attendanceRows,fileName:file.name};
+    preview.textContent=`검증 완료\n파일: ${file.name}\n학생명단: ${roster.length}명\n출석데이터: ${attendanceRows.length}건\n\n'서버 전체 데이터 교체'를 누르면 현재 Firebase 서버를 Excel로 백업한 뒤 전체 교체합니다.`;
+    $("serverFullApplyBtn").disabled=false;
+  }catch(e){ $("serverFullPreview").textContent="검증 오류: "+(e?.message||e); }
+};
+
+window.cancelServerFullUpload=function(){
+  pendingServerFullImport=null;
+  $("serverFullUpload").value="";
+  $("serverFullApplyBtn").disabled=true;
+  $("serverFullPreview").textContent="";
+  $("serverFullUploadBox").classList.add("hidden");
+};
+
+window.applyServerFullUpload=async function(){
+  if(!requireAdminLocal()||!pendingServerFullImport) return;
+  const p=pendingServerFullImport;
+  if(!confirm(`Firebase 서버 전체 데이터를 교체할까요?\n\n학생 ${p.roster.length}명\n출석 ${p.attendance.length}건\n\n적용 전에 현재 서버를 Excel로 백업합니다.`)) return;
+
+  try{
+    showServerLoading("교체 전 Firebase 백업 중...");
+    const current=await loadAllFirebaseData();
+    const wb=buildBackupWorkbook(current.classes,current.attendance);
+    const stamp=new Date().toISOString().replace(/[-:T]/g,"").slice(0,14);
+    XLSX.writeFile(wb,`Firebase_교체전백업_${stamp}.xlsx`);
+
+    updateServerLoading("Firebase 전체 데이터 교체 중...");
+    const r=await replaceAllFirebaseData(p.roster,p.attendance);
+    cancelServerFullUpload();
+    invalidateDataCache();
+    alert(`서버 전체 업로드 완료!\n학생 ${r.rosterCount}명\n출석 ${r.attendanceCount}건`);
+  }catch(e){ showError(e); alert(e?.message||e); }
+  finally{ hideServerLoading(); }
+};
+
+window.previewExcelUpload=async function(event){
+  if(!requireAdminLocal()){ event.target.value=""; return; }
+  pendingImport=null;
+  $("excelApplyBtn").disabled=true;
+  $("excelPreview").classList.add("hidden");
+  const file=event.target.files?.[0]; if(!file) return;
+
+  try{
+    showServerLoading("학생명단 확인 중...");
+    await ensureClassesLoaded();
+    hideServerLoading();
+
+    const buf=await file.arrayBuffer(),wb=XLSX.read(buf,{type:"array",cellDates:true});
+    const sheet=wb.Sheets["출석입력"];
+    if(!sheet) throw new Error("'출석입력' 시트가 필요합니다. '출석 입력양식 다운로드' 파일을 사용하세요.");
+    const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",raw:false});
+    if(rows.length<2) throw new Error("출석입력 데이터가 없습니다.");
+
+    const baseYear=getWorkbookBaseYear(wb),header=rows[0]||[];
+    if(String(header[0]).trim()!=="학년"||String(header[1]).trim()!=="반"||String(header[2]).trim()!=="학생이름")
+      throw new Error("A~C열 헤더는 '학년 / 반 / 학생이름'이어야 합니다.");
+
+    setExcelProgress(28,"출석 데이터 검증 중...",true);
+    const errors=[],dateCols=[],dateSet=new Set();
+    for(let col=3;col<header.length;col++){
+      if(String(header[col]??"").trim()==="") continue;
+      const date=parseMatrixDateHeader(header[col],baseYear);
+      if(!date){ errors.push(`${col+1}열 날짜 형식 오류: ${header[col]}`); continue; }
+      const d=new Date(`${date}T00:00:00`);
+      if(Number.isNaN(d.getTime())){ errors.push(`${col+1}열 날짜 오류: ${header[col]}`); continue; }
+      if(d.getDay()!==0) errors.push(`${col+1}열 ${date}: 일요일이 아닙니다.`);
+      if(dateSet.has(date)) errors.push(`중복 날짜 열: ${date}`);
+      dateSet.add(date); dateCols.push({col,date});
+    }
+    if(!dateCols.length) errors.push("D열 이후에 출석 날짜를 1개 이상 입력하세요.");
+
+    const rosterSet=new Set();
+    Object.keys(classes).forEach(key=>{
+      const p=String(key).split("-"),g=p.shift(),c=p.join("-");
+      (classes[key]||[]).forEach(st=>rosterSet.add(`${g}\u0001${c}\u0001${st}`));
+    });
+
+    const updates=[],updateSet=new Set();
+    for(let i=1;i<rows.length;i++){
+      const r=rows[i]||[],g=String(r[0]??"").trim(),c=String(r[1]??"").trim(),st=String(r[2]??"").trim();
+      if(!g&&!c&&!st) continue;
+      if(!g||!c||!st){ errors.push(`${i+1}행: 학년/반/학생이름 누락`); continue; }
+      if(!rosterSet.has(`${g}\u0001${c}\u0001${st}`)){ errors.push(`${i+1}행: 현재 학생명단에 없는 학생 ${g}-${c}/${st}`); continue; }
+
+      for(const dc of dateCols){
+        const raw=String(r[dc.col]??"").trim();
+        if(!raw) continue;
+        const state=normalizeState(raw);
+        if(!state){ errors.push(`${i+1}행 ${header[dc.col]}: '${raw}'은(는) 출석/결석 형식이 아닙니다.`); continue; }
+        const k=`${dc.date}\u0001${g}\u0001${c}\u0001${st}`;
+        if(updateSet.has(k)){ errors.push(`${i+1}행: 중복 출석 입력 ${dc.date}/${g}-${c}/${st}`); continue; }
+        updateSet.add(k); updates.push({date:dc.date,grade:g,className:c,student:st,state});
+      }
+    }
+
+    const preview=$("excelPreview");
+    preview.classList.remove("hidden");
+    if(errors.length){
+      setExcelProgress(100,"검증 실패",false);
+      preview.textContent=`검증 실패 (${errors.length}건)\n\n${errors.slice(0,30).join("\n")}${errors.length>30?`\n... 외 ${errors.length-30}건`:""}`;
+      return;
+    }
+    if(!updates.length){
+      setExcelProgress(100,"검증 완료 · 반영할 데이터 없음",false);
+      preview.textContent="검증 완료: 입력된 출석/결석 데이터가 없습니다.";
+      return;
+    }
+
+    pendingImport={attendance:updates,fileName:file.name};
+    setExcelProgress(100,"검증 완료 · 서버 반영 대기",false);
+    preview.textContent=`검증 완료\n파일: ${file.name}\n날짜 열: ${dateCols.length}개\n추가/갱신 대상: ${updates.length}건\n\n빈 셀은 무시되며 기존 Firebase 데이터는 유지됩니다.`;
+    $("excelApplyBtn").disabled=false;
+  }catch(e){ hideServerLoading(); showError(e); alert(e?.message||e); }
+};
+
+window.applyExcelUpload=async function(){
+  if(!requireAdminLocal()||!pendingImport) return;
+  if(!confirm(`출석 데이터를 Firebase 서버에 추가/갱신할까요?\n대상 ${pendingImport.attendance.length}건\n\n기존 전체 데이터는 삭제되지 않습니다.`)) return;
+
+  try{
+    $("excelApplyBtn").disabled=true;
+    resetExcelProgress();
+    setExcelProgress(20,"Firebase 서버 준비 중...",true);
+    const rows=pendingImport.attendance.slice();
+
+    setExcelProgress(45,"Firebase 출석 데이터 업로드 중...",true);
+    const r=await upsertAttendanceRowsFirebase(rows);
+
+    setExcelProgress(85,"화면 캐시 갱신 중...",true);
+    pendingImport=null;
+    $("excelUpload").value="";
+    $("excelPreview").classList.add("hidden");
+    invalidateAttendanceCache();
+
+    setExcelProgress(100,"업로드 완료",false);
+    alert(`업로드 완료!\n신규 추가 ${r.insertedCount}건\n기존 상태 갱신 ${r.updatedCount}건`);
+    setTimeout(resetExcelProgress,1800);
+  }catch(e){
+    $("excelApplyBtn").disabled=false;
+    setExcelProgress(100,"업로드 실패",false);
+    showError(e); alert(e?.message||e);
+  }
+};
+
+async function cleanupFirebaseData(){
+  const data=await loadAllFirebaseData();
+  const fbClasses=data.classes||{},fbAttendance=data.attendance||{};
+  let classDuplicateRemoved=0,orphanRemoved=0,attendanceInvalidRemoved=0;
+  const rosterSet=new Set(),cleanClasses={};
+
+  Object.entries(fbClasses).forEach(([key,list])=>{
+    const seen=new Set(),clean=[];
+    (Array.isArray(list)?list:[]).forEach(st=>{
+      const name=String(st??"").trim();
+      if(!name) return;
+      if(seen.has(name)){ classDuplicateRemoved++; return; }
+      seen.add(name); clean.push(name); rosterSet.add(`${key}\u0001${name}`);
+    });
+    cleanClasses[key]=clean;
+  });
+
+  const roster=rosterRowsFromClasses(cleanClasses);
+  const attRows=[];
+  Object.entries(fbAttendance).forEach(([date,day])=>{
+    Object.entries(day||{}).forEach(([classKey,classData])=>{
+      const p=classKey.split("-"),grade=p.shift(),className=p.join("-");
+      Object.entries(classData||{}).forEach(([student,state])=>{
+        if(!["present","absent","미체크"].includes(state)){ attendanceInvalidRemoved++; return; }
+        if(!rosterSet.has(`${classKey}\u0001${student}`)){ orphanRemoved++; return; }
+        attRows.push({date,grade,className,student,state});
+      });
     });
   });
 
-  $("monthlyResult").innerHTML = html + "</table>";
+  await replaceAllFirebaseData(roster,attRows);
+  return {classDuplicateRemoved,attendanceInvalidRemoved,orphanRemoved};
+}
+
+window.cleanupServerData=async function(){
+  if(!requireAdminLocal()) return;
+  if(!confirm("Firebase 서버 정리를 실행할까요?\n\n- 현재 학생명단에 없는 출석데이터 삭제\n- 잘못된 출석 데이터 삭제\n- 학생명단 중복 정리\n\n실행 전에 전체 데이터를 Excel로 백업합니다.")) return;
+
+  try{
+    showServerLoading("정리 전 Firebase 백업 중...");
+    const current=await loadAllFirebaseData();
+    const wb=buildBackupWorkbook(current.classes,current.attendance);
+    const stamp=new Date().toISOString().replace(/[-:T]/g,"").slice(0,14);
+    XLSX.writeFile(wb,`Firebase_정리전백업_${stamp}.xlsx`);
+
+    updateServerLoading("Firebase 서버 정리 중...");
+    const r=await cleanupFirebaseData();
+    invalidateDataCache();
+    alert(`서버 정리 완료!\n\n학생명단 중복 삭제: ${r.classDuplicateRemoved}건\n출석 잘못된 데이터 삭제: ${r.attendanceInvalidRemoved}건\n학생명단 미존재 출석 삭제: ${r.orphanRemoved}건`);
+  }catch(e){ showError(e); alert(e?.message||e); }
+  finally{ hideServerLoading(); }
 };
 
-/* ---------------------------------------
-    엑셀 다운로드 기능
---------------------------------------- */
-window.downloadDailyExcel = function(){
-  const table = document.querySelector("#dailyResult table");
-  if(!table) return alert("조회 후 다운로드 가능합니다.");
-
-  const wb = XLSX.utils.table_to_book(table, {sheet:"일별 조회"});
-  XLSX.writeFile(wb, "attendance_daily.xlsx");
-};
-
-window.downloadMonthlyExcel = function(){
-  const table = document.querySelector("#monthlyResult table");
-  if(!table) return alert("조회 후 다운로드 가능합니다.");
-
-  const wb = XLSX.utils.table_to_book(table, {sheet:"월별 조회"});
-  XLSX.writeFile(wb, "attendance_monthly.xlsx");
-};
-
+window.addEventListener("DOMContentLoaded",()=>{
+  hideServerLoading();
+  markServerOk("기존 Firebase 서버 사용 중 · 데이터는 필요할 때 불러옵니다.");
+});
 </script>
 </body>
 </html>
-
