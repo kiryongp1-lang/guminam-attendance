@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>구미남 초2 출석부</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<style>
+  body { font-family: Arial, sans-serif; padding:15px; max-width:900px; margin:auto; background:#fafafa; }
+  h1 { font-size:22px; text-align:center; }
+  h2 { font-size:18px; margin:0 0 12px; }
+  .box { border:1px solid #ccc; padding:15px; margin-bottom:20px; border-radius:10px; background:white; }
+  .topbar { display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-bottom:12px; flex-wrap:wrap; }
+  .status { font-size:13px; color:#666; }
+  .admin-badge { color:#0a7a2e; font-weight:bold; }
+  button { padding:10px 14px; border:none; background:#007bff; color:white; border-radius:6px; margin-top:8px; cursor:pointer; }
+  button.secondary { background:#6c757d; }
+  button.danger { background:#c82333; }
+  button.success { background:#218838; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  button:active { opacity:0.8; }
+  input, select { padding:8px; margin:5px 0; width:100%; box-sizing:border-box; }
+  .student-row { display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid #eee; font-size:15px; align-items:center; }
+  .student-row b { min-width:100px; }
+  .status-radio input { transform:scale(1.2); margin-right:5px; }
+  .missingBox { background:#ffeaea; padding:10px; border:1px solid red; border-radius:6px; margin-top:10px; }
+  .clickable { color:red; cursor:pointer; font-weight:bold; }
+  table { width:100%; border-collapse:collapse; margin-top:12px; font-size:14px; }
+  th, td { border:1px solid #aaa; padding:6px; text-align:center; }
+  th { background:#f2f2f2; }
+  .red { color:red; font-weight:bold; }
+  .hidden { display:none !important; }
+  .admin-only { border-color:#89b6ff; }
+  .note { font-size:13px; color:#666; line-height:1.5; }
+  .file-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .file-row input[type=file] { flex:1; min-width:230px; }
+  .preview { background:#f7f7f7; border:1px solid #ddd; padding:10px; border-radius:6px; margin-top:10px; white-space:pre-wrap; }
+  .upload-progress { margin-top:10px; padding:10px; border:1px solid #d9e2ef; border-radius:8px; background:#f8fbff; }
+  .upload-progress-row { display:flex; justify-content:space-between; gap:10px; font-size:13px; margin-bottom:6px; }
+  .upload-progress-track { width:100%; height:14px; background:#e9ecef; border-radius:999px; overflow:hidden; }
+  .upload-progress-bar { height:100%; width:0%; background:#218838; transition:width .25s ease; position:relative; overflow:hidden; }
+  .upload-progress-bar.working::after { content:""; position:absolute; inset:0; width:35%; background:rgba(255,255,255,.45); animation:progressMove 1s linear infinite; }
+  @keyframes progressMove { from{ transform:translateX(-120%); } to{ transform:translateX(320%); } }
+  .server-error { background:#fff0f0; color:#b00020; border:1px solid #e4a6ae; padding:10px; border-radius:6px; margin-bottom:15px; }
+  .server-tools { margin-top:14px; border-top:1px solid #dfe7f2; padding-top:14px; }
+  .tool-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-top:10px; }
+  .tool-card { width:100%; min-height:88px; margin:0; padding:12px 8px; background:#f6f8fb; color:#333; border:1px solid #cfd7e3; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; font-weight:bold; }
+  .tool-card:hover { background:#eef4ff; }
+  .tool-card.danger-card { border-color:#e0a0a8; background:#fff6f6; color:#a20f21; }
+  .tool-icon { font-size:26px; line-height:1; }
+  .server-upload-box { margin-top:12px; padding:12px; border:1px solid #ddd; border-radius:8px; background:#fafafa; }
+  @media (max-width:700px){
+    .student-row { align-items:flex-start; flex-wrap:wrap; }
+    table { font-size:12px; }
+    th, td { padding:4px; }
+  }
+</style>
+</head>
+<body>
+<h1>구미남 초2 출석부(1부등록)</h1>
+
+<div class="topbar">
+  <span id="serverStatus" class="status">서버 연결 확인 중...</span>
+  <span id="adminStatus" class="status"></span>
+  <button id="adminLoginBtn" class="secondary" onclick="showAdminLogin()">관리자 모드</button>
+  <button id="adminLogoutBtn" class="secondary hidden" onclick="adminLogout()">관리자 종료</button>
+</div>
+<div id="serverErrorBox" class="server-error hidden"></div>
+
+<!-- 관리자 로그인 -->
+<div id="adminLoginBox" class="box hidden">
+  <h2>관리자 접속</h2>
+  <label>관리자 비밀번호</label>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <input type="password" id="adminPassword" autocomplete="current-password" onkeydown="if(event.key==='Enter') adminLogin()" style="flex:1;">
+    <button type="button" id="adminPasswordToggleBtn" class="secondary" onclick="toggleAdminPassword()" style="margin-top:5px; white-space:nowrap;">보이기</button>
+  </div>
+  <button onclick="adminLogin()">접속</button>
+  <button class="secondary" onclick="hideAdminLogin()">취소</button>
+  <div class="note">비밀번호는 HTML에 저장하지 않고 Google Apps Script 서버에서 확인합니다.</div>
+</div>
+
+<!-- 관리자 도구 -->
+<div id="adminPanel" class="box admin-only hidden">
+  <h2>관리자 도구</h2>
+  <button onclick="toggleRegisterUI()">학생 등록</button>
+  <button class="success" onclick="downloadEditTemplate()">출석 입력양식 다운로드</button>
+  <button class="secondary" onclick="toggleServerManager()">🗄️ 서버관리</button>
+
+  <div style="margin-top:14px; border-top:1px solid #eee; padding-top:12px;">
+    <b>출석 Excel 추가/수정</b>
+    <div class="note">양식의 A~C열에는 Google Sheet 서버에 등록된 전체 학생명단(모든 학년/반/학생)이 들어갑니다. D열부터 날짜를 적고 각 학생 칸에 '출석' 또는 '결석'을 입력하세요. 빈 셀은 무시하며, 기존 서버 출석데이터 전체를 삭제하거나 교체하지 않습니다. 같은 날짜/학생 기록만 갱신하고 새 기록은 추가합니다.</div>
+    <div class="file-row">
+      <input type="file" id="excelUpload" accept=".xlsx,.xls" onchange="previewExcelUpload(event)">
+      <button id="excelApplyBtn" class="success" disabled onclick="applyExcelUpload()">출석 데이터 추가/갱신</button>
+    </div>
+    <div id="excelPreview" class="preview hidden"></div>
+    <div id="excelProgress" class="upload-progress hidden">
+      <div class="upload-progress-row"><b id="excelProgressText">대기 중</b><span id="excelProgressPercent">0%</span></div>
+      <div class="upload-progress-track"><div id="excelProgressBar" class="upload-progress-bar"></div></div>
+    </div>
+  </div>
+
+  <div id="serverManagerPanel" class="server-tools hidden">
+    <h3 style="margin:0 0 6px;">서버관리</h3>
+    <div class="note">백업, 전체 교체, 서버 정리처럼 서버 전체 데이터에 영향을 주는 기능은 이 메뉴에서만 사용합니다.</div>
+
+    <div class="tool-grid">
+      <button class="tool-card" onclick="backupFirebaseServer()">
+        <span class="tool-icon">🔥</span>
+        <span>Firebase 서버 백업</span>
+      </button>
+      <button class="tool-card" onclick="downloadServerBackupExcel()">
+        <span class="tool-icon">📥</span>
+        <span>현재 서버 Excel 백업</span>
+      </button>
+      <button class="tool-card" onclick="createDriveBackup()">
+        <span class="tool-icon">☁️</span>
+        <span>Drive 서버 백업</span>
+      </button>
+      <button class="tool-card" onclick="document.getElementById('serverFullUpload').click()">
+        <span class="tool-icon">⬆️</span>
+        <span>서버 전체 업로드</span>
+      </button>
+      <button class="tool-card danger-card" onclick="cleanupServerData()">
+        <span class="tool-icon">🧹</span>
+        <span>서버 정리</span>
+      </button>
+    </div>
+
+    <input type="file" id="serverFullUpload" accept=".xlsx,.xls" class="hidden" onchange="previewServerFullUpload(event)">
+    <div id="serverFullUploadBox" class="server-upload-box hidden">
+      <b>서버 전체 업로드</b>
+      <div class="note">Firebase 백업 또는 현재 서버 백업 Excel의 <b>학생명단 / 출석데이터</b> 시트를 이용하여 Google Sheet 서버 전체 데이터를 교체합니다. 적용 직전에 현재 서버를 Google Drive에 자동 백업합니다.</div>
+      <div id="serverFullPreview" class="preview"></div>
+      <button id="serverFullApplyBtn" class="danger" disabled onclick="applyServerFullUpload()">서버 전체 데이터 교체</button>
+      <button class="secondary" onclick="cancelServerFullUpload()">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 학생 등록: 관리자 전용 -->
+<div id="registerUI" class="hidden box admin-only">
+  <h2>학년 / 반 / 학생 등록</h2>
+  <label>학년</label>
+  <input type="text" id="regGrade">
+  <label>반</label>
+  <input type="text" id="regClass">
+  <label>학생 이름</label>
+  <input type="text" id="regStudent">
+  <button onclick="registerStudent()">등록</button>
+</div>
+
+<!-- 출석 체크 -->
+<div class="box">
+  <h2>출석 체크</h2>
+  <label>날짜 선택 (일요일만)</label>
+  <input type="date" id="attDate" onchange="onSelectDate()">
+  <div id="missingClassBox"></div>
+  <label>학년 선택</label>
+  <select id="attGrade" onchange="loadClasses()"></select>
+  <label>반 선택</label>
+  <select id="attClass" onchange="loadStudents()"></select>
+  <div id="studentList"></div>
+  <button onclick="saveAttendance()">출석 저장</button>
+</div>
+
+<!-- 일별 조회 -->
+<div class="box">
+  <h2>일별 조회</h2>
+  <input type="date" id="dailyQuery" onchange="queryDaily()">
+  <button onclick="downloadDailyExcel()">엑셀 다운로드</button>
+  <div id="dailyResult"></div>
+</div>
+
+<!-- 월별 조회 -->
+<div class="box">
+  <h2>월별 조회</h2>
+  <input type="month" id="monthlyQuery" onchange="queryMonthly()">
+  <button onclick="downloadMonthlyExcel()">엑셀 다운로드</button>
+  <div id="monthlyResult"></div>
+</div>
+
+<script>
+/* ======================================================
+   Google Apps Script Web App URL
+   1) Code.gs를 Apps Script에 배포
+   2) 아래 URL을 배포 URL로 교체
+====================================================== */
+//const API_URL = "https://script.google.com/macros/s/AKfycbzZhXtQV9dIZ743qSNl2oNJ3E3uKpXSOzwH_jdh7le0EDDw7fWsrtyQh0MP0rVeF4-l/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyZotYiARMBhPhQm5omq5AP4-sCo86RmLWnpgExw00Wf1eQIYm4-8beDrslpdgRyKoT/exec";
+
+let classes = {};
+let attendance = {};
+let adminToken = "";
+let pendingImport = null;
+let pendingServerFullImport = null;
+let serverConnectionState = "unknown"; // unknown | ok | ng
+let lastServerNgMessage = "";
+let reconnectTimer = null;
+
+// 서버 통신 재시도: 최초 1회 + 추가 3회
+const SERVER_RETRY_COUNT = 3;
+const SERVER_RETRY_DELAY_MS = 700;
+
+function $(id){ return document.getElementById(id); }
+function esc(v){ return String(v ?? "").replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+
+function clearConnectionError(){
+  $("serverErrorBox").textContent = "";
+  $("serverErrorBox").classList.add("hidden");
+}
+function markServerNg(error){
+  const msg = error?.message || String(error || "서버 접속 실패");
+  const changed = serverConnectionState !== "ng" || lastServerNgMessage !== msg;
+  serverConnectionState = "ng";
+  lastServerNgMessage = msg;
+  $("serverStatus").textContent = "서버 접속 NG";
+  $("serverErrorBox").textContent = `서버 접속 NG: ${msg}`;
+  $("serverErrorBox").classList.remove("hidden");
+  if(changed) console.warn("[SERVER NG]", msg); // 같은 NG 반복 로그 방지
+}
+function markServerOk(message){
+  const recovered = serverConnectionState === "ng";
+  serverConnectionState = "ok";
+  lastServerNgMessage = "";
+  clearConnectionError();
+  $("serverStatus").textContent = message || "Google Sheet 연결됨";
+  if(recovered) console.info("[SERVER OK] 서버 접속이 정상 복구되었습니다.");
+}
+
+function sleep(ms){ return new Promise(resolve=>setTimeout(resolve,ms)); }
+
+async function api(action, payload = {}){
+  if(!API_URL || API_URL.includes("PASTE_GOOGLE")){
+    const e = new Error("HTML의 API_URL에 Google Apps Script Web App URL을 설정하세요.");
+    e.isConnectionError = true;
+    markServerNg(e);
+    throw e;
+  }
+
+  let lastError = null;
+
+  // 최초 1회 + 추가 3회 재시도
+  for(let attempt = 0; attempt <= SERVER_RETRY_COUNT; attempt++){
+    try{
+      const res = await fetch(API_URL, {
+        method:"POST",
+        headers:{"Content-Type":"text/plain;charset=utf-8"},
+        body:JSON.stringify({ action, ...payload })
+      });
+
+      if(!res.ok){
+        const e = new Error(`서버 응답 오류: HTTP ${res.status}`);
+        e.isConnectionError = true;
+        throw e;
+      }
+
+      let json;
+      try{
+        json = await res.json();
+      }catch(ex){
+        const e = new Error("서버 응답 형식이 올바르지 않습니다.");
+        e.isConnectionError = true;
+        throw e;
+      }
+
+      // 응답을 정상 수신하면 즉시 NG 상태/실패 이력 초기화
+      markServerOk();
+
+      // 서버 처리 오류(비밀번호 오류 등)는 접속 오류가 아니므로 재시도하지 않는다.
+      if(!json.ok) throw new Error(json.error || "서버 처리 오류");
+      return json;
+
+    }catch(ex){
+      // 서버 처리 오류는 즉시 전달
+      if(!ex?.isConnectionError){
+        throw ex;
+      }
+
+      lastError = ex;
+
+      // 중간 실패는 사용자 화면/NG 로그에 표시하지 않고 조용히 재시도
+      if(attempt < SERVER_RETRY_COUNT){
+        console.info(`[SERVER RETRY] ${action} 재시도 ${attempt + 1}/${SERVER_RETRY_COUNT}`);
+        await sleep(SERVER_RETRY_DELAY_MS);
+        continue;
+      }
+    }
+  }
+
+  // 추가 3회 재시도까지 모두 실패한 경우에만 접속 NG 표시
+  const finalError = lastError || new Error("서버 접속 실패");
+  finalError.isConnectionError = true;
+  markServerNg(finalError);
+  throw finalError;
+}
+
+function setBusy(message){ $("serverStatus").textContent = message || "처리 중..."; }
+function setExcelProgress(percent, text, working=true){
+  const box=$("excelProgress"), bar=$("excelProgressBar");
+  if(!box || !bar) return;
+  box.classList.remove("hidden");
+  const p=Math.max(0,Math.min(100,Number(percent)||0));
+  bar.style.width=`${p}%`;
+  bar.classList.toggle("working",!!working && p<100);
+  $("excelProgressText").textContent=text||"처리 중...";
+  $("excelProgressPercent").textContent=`${Math.round(p)}%`;
+}
+function resetExcelProgress(){
+  const box=$("excelProgress"), bar=$("excelProgressBar");
+  if(!box || !bar) return;
+  bar.style.width="0%"; bar.classList.remove("working");
+  $("excelProgressText").textContent="대기 중"; $("excelProgressPercent").textContent="0%";
+  box.classList.add("hidden");
+}
+function showError(error){
+  console.error(error);
+  if(error?.isConnectionError) markServerNg(error);
+}
+
+
+/* ======================================================
+   기존 Firebase 병행 운용
+   - 조회: Google Sheet 우선 + Firebase에만 있는 기존 데이터 보완
+   - 저장: Google Sheet 저장 후 Firebase에도 동일 반영
+   - 충돌 시 Google Sheet 값을 우선 표시
+====================================================== */
+const LEGACY_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAqOhG9cyAdrEPR_d2xRwJKDreud4mBIpk",
+  authDomain: "guminam-70f61.firebaseapp.com",
+  projectId: "guminam-70f61",
+  storageBucket: "guminam-70f61.firebasestorage.app",
+  messagingSenderId: "657304988654",
+  appId: "1:657304988654:web:29f66969eb844711723cff",
+  measurementId: "G-7N0PHE3P8Z"
+};
+
+let legacyFirebasePromise = null;
+
+async function getLegacyFirebase(){
+  if(!legacyFirebasePromise){
+    legacyFirebasePromise = (async()=>{
+      const appMod = await import("https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js");
+      const fsMod = await import("https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js");
+      const fbApp = appMod.getApps().find(a=>a.name==="legacyAttendanceDualWrite") ||
+        appMod.initializeApp(LEGACY_FIREBASE_CONFIG,"legacyAttendanceDualWrite");
+      return { fsMod, db:fsMod.getFirestore(fbApp) };
+    })();
+  }
+  return legacyFirebasePromise;
+}
+
+async function legacyRetry(label, work){
+  let lastError = null;
+  for(let attempt=0; attempt<=SERVER_RETRY_COUNT; attempt++){
+    try{
+      return {ok:true, value:await work()};
+    }catch(e){
+      lastError=e;
+      if(attempt<SERVER_RETRY_COUNT){
+        console.info(`[FIREBASE RETRY] ${label} 재시도 ${attempt+1}/${SERVER_RETRY_COUNT}`);
+        await sleep(SERVER_RETRY_DELAY_MS);
+      }
+    }
+  }
+  console.warn(`[FIREBASE NG] ${label}`, lastError);
+  return {ok:false, error:lastError};
+}
+
+async function loadLegacyFirebaseData(){
+  const {fsMod,db}=await getLegacyFirebase();
+  const [clsSnap,attSnap]=await Promise.all([
+    fsMod.getDocs(fsMod.collection(db,"classes")),
+    fsMod.getDocs(fsMod.collection(db,"attendance"))
+  ]);
+  const fbClasses={}, fbAttendance={};
+  clsSnap.forEach(d=>fbClasses[d.id]=Array.isArray(d.data()?.students)?d.data().students:[]);
+  attSnap.forEach(d=>fbAttendance[d.id]=d.data()||{});
+  return {classes:fbClasses,attendance:fbAttendance};
+}
+
+function mergeServerData(gsClasses,gsAttendance,fbClasses,fbAttendance){
+  const mergedClasses={};
+  Object.entries(fbClasses||{}).forEach(([key,list])=>{
+    mergedClasses[key]=Array.isArray(list)?[...list]:[];
+  });
+  Object.entries(gsClasses||{}).forEach(([key,list])=>{
+    const base=Array.isArray(mergedClasses[key])?mergedClasses[key]:[];
+    const current=Array.isArray(list)?list:[];
+    // Google Sheet에 있는 순서를 우선하고 Firebase에만 있는 기존 학생을 뒤에 보완
+    mergedClasses[key]=[...current,...base.filter(x=>!current.includes(x))];
+  });
+
+  const mergedAttendance=JSON.parse(JSON.stringify(fbAttendance||{}));
+  Object.entries(gsAttendance||{}).forEach(([date,day])=>{
+    if(!mergedAttendance[date]) mergedAttendance[date]={};
+    Object.entries(day||{}).forEach(([classKey,classData])=>{
+      if(!mergedAttendance[date][classKey]) mergedAttendance[date][classKey]={};
+      // 동일 날짜/반/학생은 Google Sheet 값 우선
+      Object.assign(mergedAttendance[date][classKey],classData||{});
+    });
+  });
+  return {classes:mergedClasses,attendance:mergedAttendance};
+}
+
+async function syncLegacyRegisterStudent(grade,className,student){
+  const {fsMod,db}=await getLegacyFirebase();
+  const ref=fsMod.doc(db,"classes",`${grade}-${className}`);
+  const snap=await fsMod.getDoc(ref);
+  const list=Array.isArray(snap.data()?.students)?[...snap.data().students]:[];
+  if(!list.includes(student)) list.push(student);
+  await fsMod.setDoc(ref,{students:list});
+}
+
+async function syncLegacySaveAttendance(date,grade,className,states){
+  const {fsMod,db}=await getLegacyFirebase();
+  const key=`${grade}-${className}`;
+  const classRef=fsMod.doc(db,"classes",key);
+  const attRef=fsMod.doc(db,"attendance",date);
+  const [classSnap,attSnap]=await Promise.all([fsMod.getDoc(classRef),fsMod.getDoc(attRef)]);
+
+  let students=Array.isArray(classSnap.data()?.students)?[...classSnap.data().students]:[];
+  const dayData=attSnap.exists()?{...(attSnap.data()||{})}:{};
+  const classData={...(dayData[key]||{})};
+
+  states.forEach(x=>{
+    const student=String(x.student||"").trim();
+    if(!student) return;
+    if(x.state==="delete"){
+      students=students.filter(n=>n!==student);
+      delete classData[student];
+    }else{
+      if(!students.includes(student)) students.push(student);
+      classData[student]=x.state;
+    }
+  });
+
+  dayData[key]=classData;
+  await Promise.all([
+    fsMod.setDoc(classRef,{students}),
+    fsMod.setDoc(attRef,dayData)
+  ]);
+}
+
+async function syncLegacyMoveStudent(oldKey,newGrade,newClass,student){
+  const {fsMod,db}=await getLegacyFirebase();
+  const newKey=`${newGrade}-${newClass}`;
+  const oldRef=fsMod.doc(db,"classes",oldKey);
+  const newRef=fsMod.doc(db,"classes",newKey);
+
+  const [oldSnap,newSnap,attSnap]=await Promise.all([
+    fsMod.getDoc(oldRef),
+    fsMod.getDoc(newRef),
+    fsMod.getDocs(fsMod.collection(db,"attendance"))
+  ]);
+
+  let oldList=Array.isArray(oldSnap.data()?.students)?[...oldSnap.data().students]:[];
+  let newList=Array.isArray(newSnap.data()?.students)?[...newSnap.data().students]:[];
+  oldList=oldList.filter(n=>n!==student);
+  if(!newList.includes(student)) newList.push(student);
+
+  const updates=[
+    {ref:oldRef,data:{students:oldList}},
+    {ref:newRef,data:{students:newList}}
+  ];
+
+  attSnap.forEach(d=>{
+    const docData={...(d.data()||{})};
+    const oldClassData={...(docData[oldKey]||{})};
+    if(!(student in oldClassData)) return;
+
+    const value=oldClassData[student];
+    delete oldClassData[student];
+    const newClassData={...(docData[newKey]||{})};
+    newClassData[student]=value;
+    docData[oldKey]=oldClassData;
+    docData[newKey]=newClassData;
+    updates.push({ref:d.ref,data:docData});
+  });
+
+  for(let i=0;i<updates.length;i+=400){
+    const batch=fsMod.writeBatch(db);
+    updates.slice(i,i+400).forEach(x=>batch.set(x.ref,x.data));
+    await batch.commit();
+  }
+}
+
+async function syncLegacyAttendanceRows(rows){
+  if(!Array.isArray(rows)||rows.length===0) return;
+  const {fsMod,db}=await getLegacyFirebase();
+  const byDate=new Map();
+
+  rows.forEach(r=>{
+    if(!byDate.has(r.date)) byDate.set(r.date,[]);
+    byDate.get(r.date).push(r);
+  });
+
+  const changes=[];
+  for(const [date,dateRows] of byDate.entries()){
+    const ref=fsMod.doc(db,"attendance",date);
+    const snap=await fsMod.getDoc(ref);
+    const dayData=snap.exists()?{...(snap.data()||{})}:{};
+
+    dateRows.forEach(r=>{
+      const classKey=`${r.grade}-${r.className}`;
+      const classData={...(dayData[classKey]||{})};
+      classData[r.student]=r.state;
+      dayData[classKey]=classData;
+    });
+    changes.push({ref,data:dayData});
+  }
+
+  for(let i=0;i<changes.length;i+=400){
+    const batch=fsMod.writeBatch(db);
+    changes.slice(i,i+400).forEach(x=>batch.set(x.ref,x.data));
+    await batch.commit();
+  }
+}
+
+function showDualWriteResult(message,fbResult){
+  if(fbResult?.ok){
+    alert(`${message}\n\nGoogle Sheet: 정상\n기존 Firebase: 정상`);
+  }else{
+    alert(`${message}\n\nGoogle Sheet: 정상\n기존 Firebase: 동기화 실패\n${fbResult?.error?.message||fbResult?.error||""}\n\nGoogle Sheet에 저장된 내용은 유지됩니다.`);
+  }
+}
+
+async function loadAllData(){
+  setBusy("서버 데이터 불러오는 중...");
+  try{
+    const r = await api("getAllData");
+    const gsClasses = r.classes || {};
+    const gsAttendance = r.attendance || {};
+
+    // 기존 Firebase는 3회 재시도 후 보완 데이터로 사용
+    const fbResult = await legacyRetry("기존 데이터 조회", loadLegacyFirebaseData);
+    if(fbResult.ok){
+      const merged = mergeServerData(gsClasses,gsAttendance,fbResult.value.classes,fbResult.value.attendance);
+      classes = merged.classes;
+      attendance = merged.attendance;
+
+      const gsClassCount=Object.keys(gsClasses).length;
+      const fbClassCount=Object.keys(fbResult.value.classes||{}).length;
+      if(gsClassCount===0 && fbClassCount>0)
+        markServerOk(`Google Sheet 연결됨 · 기존 Firebase 데이터 표시 · 반 ${Object.keys(classes).length}개`);
+      else
+        markServerOk(`Google Sheet + Firebase 연결됨 · 반 ${Object.keys(classes).length}개`);
+    }else{
+      classes = gsClasses;
+      attendance = gsAttendance;
+      markServerOk(`Google Sheet 연결됨 · Firebase 조회 실패 · 반 ${Object.keys(classes).length}개`);
+    }
+
+    loadGradeDropdown();
+    if($("dailyQuery").value) queryDaily();
+    if($("monthlyQuery").value) queryMonthly();
+    if($("attDate").value) showMissingClasses();
+  }catch(e){
+    if(!e?.isConnectionError) $("serverStatus").textContent = "Google Sheet 연결됨 · 처리 오류";
+    showError(e);
+  }
+}
+
+async function retryServerConnection(){
+  if(serverConnectionState !== "ng") return;
+  try{ await api("ping"); }
+  catch(e){ /* markServerNg에서 동일 NG 반복 로그를 차단 */ }
+}
+window.addEventListener("DOMContentLoaded", ()=>{
+  loadAllData();
+  reconnectTimer = setInterval(retryServerConnection, 30000);
+});
+
+/* ---------------- 관리자 ---------------- */
+window.showAdminLogin = function(){ $("adminLoginBox").classList.remove("hidden"); $("adminPassword").focus(); };
+window.toggleServerManager = function(){
+  if(!requireAdminLocal()) return;
+  $("serverManagerPanel").classList.toggle("hidden");
+};
+window.toggleAdminPassword = function(){
+  const input = $("adminPassword");
+  const btn = $("adminPasswordToggleBtn");
+  const show = input.type === "password";
+  input.type = show ? "text" : "password";
+  btn.textContent = show ? "숨기기" : "보이기";
+};
+window.hideAdminLogin = function(){
+  $("adminLoginBox").classList.add("hidden");
+  $("adminPassword").value = "";
+  $("adminPassword").type = "password";
+  $("adminPasswordToggleBtn").textContent = "보이기";
+};
+window.adminLogin = async function(){
+  const password = $("adminPassword").value;
+  if(!password) return alert("비밀번호를 입력하세요.");
+  try{
+    setBusy("관리자 인증 중...");
+    const r = await api("adminLogin", { password });
+    adminToken = r.token;
+    $("adminStatus").textContent = "관리자 접속 중";
+    $("adminStatus").className = "status admin-badge";
+    $("adminPanel").classList.remove("hidden");
+    $("adminLoginBtn").classList.add("hidden");
+    $("adminLogoutBtn").classList.remove("hidden");
+    hideAdminLogin();
+    $("serverStatus").textContent = "Google Sheet 연결됨";
+    if($("dailyQuery").value) queryDaily();
+  }catch(e){
+    showError(e);
+    alert("관리자 비밀번호가 올바르지 않거나 인증 중 오류가 발생했습니다.");
+  }
+};
+window.adminLogout = function(){
+  adminToken = "";
+  pendingImport = null;
+  pendingServerFullImport = null;
+  $("adminStatus").textContent = "";
+  $("adminPanel").classList.add("hidden");
+  $("registerUI").classList.add("hidden");
+  $("serverManagerPanel").classList.add("hidden");
+  $("serverFullUploadBox").classList.add("hidden");
+  $("serverFullUpload").value = "";
+  $("adminLoginBtn").classList.remove("hidden");
+  $("adminLogoutBtn").classList.add("hidden");
+  $("excelApplyBtn").disabled = true;
+  $("excelPreview").classList.add("hidden");
+  if($("dailyQuery").value) queryDaily();
+};
+function requireAdminLocal(){ if(!adminToken){ alert("관리자 모드로 접속하세요."); return false; } return true; }
+
+/* ---------------- 학생 등록 ---------------- */
+window.toggleRegisterUI = function(){ if(requireAdminLocal()) $("registerUI").classList.toggle("hidden"); };
+window.registerStudent = async function(){
+  if(!requireAdminLocal()) return;
+  const g = $("regGrade").value.trim(), c = $("regClass").value.trim(), s = $("regStudent").value.trim();
+  if(!g || !c || !s) return alert("모든 항목을 입력하세요.");
+  try{
+    await api("registerStudent", { token:adminToken, grade:g, className:c, student:s });
+    const fbResult=await legacyRetry("학생 등록",()=>syncLegacyRegisterStudent(g,c,s));
+    $("regStudent").value = "";
+    await loadAllData();
+    showDualWriteResult("등록 완료!",fbResult);
+  }catch(e){ showError(e); alert(e.message); }
+};
+
+/* ---------------- 학년/반/학생 ---------------- */
+function loadGradeDropdown(){
+  const sel = $("attGrade");
+  const old = sel.value;
+  sel.innerHTML = `<option value=''>선택</option>`;
+  const grades = [...new Set(Object.keys(classes).filter(k => Array.isArray(classes[k]) && classes[k].length > 0).map(k => k.split("-")[0]))]
+    .sort(naturalCompare);
+  grades.forEach(g => sel.insertAdjacentHTML("beforeend", `<option value="${esc(g)}">${esc(g)}</option>`));
+  if(grades.includes(old)) sel.value = old;
+  loadClasses();
+}
+function naturalCompare(a,b){
+  const an=Number(a), bn=Number(b), ai=!Number.isNaN(an)&&String(a)!=="", bi=!Number.isNaN(bn)&&String(b)!=="";
+  if(ai&&bi) return an-bn;
+  return String(a).localeCompare(String(b), "ko", {numeric:true});
+}
+window.loadClasses = function(){
+  const g = $("attGrade").value, sel = $("attClass"), old = sel.value;
+  sel.innerHTML = `<option value="">선택</option>`;
+  const classNames = Object.keys(classes)
+    .filter(k => k.split("-")[0] === g && Array.isArray(classes[k]) && classes[k].length > 0)
+    .map(k => k.split("-").slice(1).join("-"))
+    .sort(naturalCompare);
+  classNames.forEach(c => sel.insertAdjacentHTML("beforeend", `<option value="${esc(c)}">${esc(c)}</option>`));
+  if(classNames.includes(old)) sel.value = old;
+  loadStudents();
+};
+window.loadStudents = function(){
+  const g=$("attGrade").value, c=$("attClass").value, key=`${g}-${c}`, date=$("attDate").value, box=$("studentList");
+  if(!g || !c || !classes[key]){ box.innerHTML=""; return; }
+  const dayData = attendance[date]?.[key] || {};
+  box.innerHTML = classes[key].map((st, idx) => {
+    const prev = dayData[st] || "미체크", radioName=`st_${idx}`;
+    return `<div class="student-row" data-student="${esc(st)}">
+      <b>${esc(st)}</b>
+      <label><input type="radio" name="${radioName}" value="present" ${prev==="present"?"checked":""}> 출석</label>
+      <label><input type="radio" name="${radioName}" value="absent" ${prev==="absent"?"checked":""}> 결석</label>
+      ${adminToken ? `<label><input type="radio" name="${radioName}" value="delete"> ❌ 삭제(명단)</label>` : ""}
+    </div>`;
+  }).join("");
+};
+
+/* ---------------- 날짜 / 미체크 ---------------- */
+window.onSelectDate = function(){
+  if(!$("attDate").value) return;
+  const d = new Date(`${$("attDate").value}T00:00:00`);
+  if(d.getDay() !== 0){ alert("일요일만 선택 가능합니다."); $("attDate").value=""; return; }
+  showMissingClasses();
+  loadStudents();
+};
+function showMissingClasses(){
+  const date=$("attDate").value, box=$("missingClassBox");
+  if(!date){ box.innerHTML=""; return; }
+  const data=attendance[date]||{};
+  const activeClasses=Object.keys(classes).filter(k=>Array.isArray(classes[k])&&classes[k].length>0);
+  const missing=activeClasses.filter(key => classes[key].some(st => !["present","absent","delete"].includes(data[key]?.[st])));
+  if(missing.length===0){ box.innerHTML="<b>모든 반이 체크되었습니다.</b>"; return; }
+  box.innerHTML=`<div class='missingBox'><b>출석 미체크 반:</b><br>${missing.sort(classKeyCompare).map(k=>`<div class="clickable" data-classkey="${esc(k)}">${esc(k)}</div>`).join("")}</div>`;
+  box.querySelectorAll("[data-classkey]").forEach(el => el.onclick = () => selectClass(el.dataset.classkey));
+}
+function classKeyCompare(a,b){
+  const [ag,...acp]=String(a).split("-"), [bg,...bcp]=String(b).split("-");
+  const g=naturalCompare(ag,bg); return g!==0?g:naturalCompare(acp.join("-"), bcp.join("-"));
+}
+window.selectClass = function(key){
+  const p=String(key).split("-"), g=p.shift(), c=p.join("-");
+  $("attGrade").value=g; loadClasses(); $("attClass").value=c; loadStudents();
+};
+
+/* ---------------- 출석 저장 ---------------- */
+window.saveAttendance = async function(){
+  const date=$("attDate").value, g=$("attGrade").value, c=$("attClass").value, key=`${g}-${c}`;
+  if(!date || !g || !c) return alert("날짜/학년/반을 입력하세요.");
+  if(!classes[key]) return;
+
+  const rows=[...$("studentList").querySelectorAll(".student-row")];
+  const states=[];
+  const deleteNames=[];
+  for(const row of rows){
+    const student=row.dataset.student;
+    const sel=row.querySelector('input[type="radio"]:checked');
+    const state=sel?sel.value:"미체크";
+    if(state==="delete") deleteNames.push(student);
+    states.push({student,state});
+  }
+  if(deleteNames.length){
+    if(!adminToken) return alert("학생 명단 삭제는 관리자만 가능합니다.");
+    if(!confirm(`${deleteNames.join(", ")} 학생을 명단에서 삭제할까요?\n해당 날짜의 출석 기록도 함께 제거됩니다.`)) return;
+  }
+  try{
+    setBusy("출석 저장 중...");
+    await api("saveAttendance", { date, grade:g, className:c, states, adminToken:adminToken || "" });
+    const fbResult=await legacyRetry("출석 저장",()=>syncLegacySaveAttendance(date,g,c,states));
+    await loadAllData();
+    $("attGrade").value=g; loadClasses(); $("attClass").value=c; loadStudents(); showMissingClasses();
+    showDualWriteResult("저장되었습니다!",fbResult);
+  }catch(e){ showError(e); alert(e.message); }
+};
+
+/* ---------------- 학생 반 이동: 관리자 ---------------- */
+window.moveStudentClass = async function(oldKey, studentName){
+  if(!requireAdminLocal()) return;
+  const safeKey=encodeURIComponent(oldKey), safeName=encodeURIComponent(studentName);
+  const gEl=$(`mvGrade_${safeKey}_${safeName}`), cEl=$(`mvClass_${safeKey}_${safeName}`);
+  if(!gEl || !cEl) return;
+  const newGrade=(gEl.value||"").trim(), newClass=(cEl.value||"").trim();
+  if(!newGrade || !newClass) return alert("학년/반을 입력하세요.");
+  const newKey=`${newGrade}-${newClass}`;
+  if(newKey===oldKey) return alert("변경 내용이 없습니다.");
+  if(!confirm(`학생 반 이동을 저장할까요?\n${studentName}\n${oldKey} → ${newKey}\n(출석 데이터도 함께 이동합니다)`)) return;
+  try{
+    await api("moveStudentClass", { token:adminToken, oldKey, newGrade, newClass, student:studentName });
+    const fbResult=await legacyRetry("학생 반 이동",()=>syncLegacyMoveStudent(oldKey,newGrade,newClass,studentName));
+    await loadAllData();
+    showDualWriteResult(`저장 완료!\n${studentName}\n${oldKey} → ${newKey}`,fbResult);
+  }catch(e){ showError(e); alert(e.message); }
+};
+
+/* ---------------- 일별 조회 ---------------- */
+window.queryDaily = function(){
+  const date=$("dailyQuery").value, box=$("dailyResult"), data=attendance[date]||{};
+  if(!date){ box.innerHTML=""; return; }
+  const rows=[];
+  Object.keys(classes).forEach(classKey => (classes[classKey]||[]).forEach(name => rows.push({name,classKey})));
+  rows.sort((a,b)=>classKeyCompare(a.classKey,b.classKey)||String(a.name).localeCompare(String(b.name),"ko"));
+
+  let html="<table><tr>";
+  if(adminToken) html += '<th style="width:18%;">현재 학년-반</th><th style="width:20%;">변경 학년</th><th style="width:20%;">변경 반</th><th style="width:10%;">상태</th><th style="width:10%;">저장</th><th style="width:22%;">이름</th>';
+  else html += '<th>학년-반</th><th>상태</th><th>이름</th>';
+  html += "</tr>";
+
+  rows.forEach(r=>{
+    const name=r.name, oldKey=r.classKey, parts=String(oldKey).split("-"), g0=parts.shift()||"", c0=parts.join("-");
+    const safeKey=encodeURIComponent(oldKey), safeName=encodeURIComponent(name);
+    let v=data[oldKey]?.[name]||"미체크";
+    if(v==="present") v="출석"; else if(v==="absent") v="<span class='red'>결석</span>"; else v="<span class='red'>미체크</span>";
+    if(adminToken){
+      html += `<tr><td>${esc(oldKey)}</td><td><input id="mvGrade_${safeKey}_${safeName}" value="${esc(g0)}"></td><td><input id="mvClass_${safeKey}_${safeName}" value="${esc(c0)}"></td><td>${v}</td><td><button class="move-btn" data-old="${esc(oldKey)}" data-name="${esc(name)}">저장</button></td><td><b>${esc(name)}</b></td></tr>`;
+    }else{
+      html += `<tr><td>${esc(oldKey)}</td><td>${v}</td><td><b>${esc(name)}</b></td></tr>`;
+    }
+  });
+  html += "</table>";
+  box.innerHTML=html;
+  box.querySelectorAll(".move-btn").forEach(btn => btn.onclick=()=>moveStudentClass(btn.dataset.old, btn.dataset.name));
+};
+
+/* ---------------- 월별 조회 ---------------- */
+window.queryMonthly = function(){
+  const m=$("monthlyQuery").value;
+  if(!m){ $("monthlyResult").innerHTML=""; return; }
+  const month=Number(m.split("-")[1]), days=[];
+  for(let i=1;i<=31;i++){
+    const ds=`${m}-${String(i).padStart(2,"0")}`, d=new Date(`${ds}T00:00:00`);
+    if(d.getMonth()+1!==month) continue;
+    if(d.getDay()===0) days.push(ds);
+  }
+  let html="<table><tr><th>학년-반/학생</th>"; days.forEach(d=>html+=`<th>${d}</th>`); html+="</tr>";
+  Object.keys(classes).sort(classKeyCompare).forEach(key=>{
+    (classes[key]||[]).slice().sort((a,b)=>String(a).localeCompare(String(b),"ko")).forEach(st=>{
+      html+=`<tr><td>${esc(key)}/${esc(st)}</td>`;
+      days.forEach(day=>{
+        let v=attendance[day]?.[key]?.[st]||"미체크";
+        if(v==="present") v="출석"; else if(v==="absent") v="<span class='red'>결석</span>"; else v="<span class='red'>미체크</span>";
+        html+=`<td>${v}</td>`;
+      });
+      html+="</tr>";
+    });
+  });
+  $("monthlyResult").innerHTML=html+"</table>";
+};
+
+/* ---------------- 기존 조회 Excel ---------------- */
+window.downloadDailyExcel = function(){
+  const table=document.querySelector("#dailyResult table");
+  if(!table) return alert("조회 후 다운로드 가능합니다.");
+  const wb=XLSX.utils.table_to_book(table,{sheet:"일별 조회"});
+  XLSX.writeFile(wb,"attendance_daily.xlsx");
+};
+window.downloadMonthlyExcel = function(){
+  const table=document.querySelector("#monthlyResult table");
+  if(!table) return alert("조회 후 다운로드 가능합니다.");
+  const wb=XLSX.utils.table_to_book(table,{sheet:"월별 조회"});
+  XLSX.writeFile(wb,"attendance_monthly.xlsx");
+};
+
+/* ---------------- 관리자 Excel 양식/백업 ---------------- */
+function rosterRowsFromClasses(sourceClasses){
+  const rows=[];
+  Object.keys(sourceClasses).sort(classKeyCompare).forEach(key=>{
+    const p=String(key).split("-"), g=p.shift(), c=p.join("-");
+    (sourceClasses[key]||[]).slice().sort((a,b)=>String(a).localeCompare(String(b),"ko")).forEach(st=>rows.push([g,c,st]));
+  });
+  return rows;
+}
+
+function buildBackupWorkbook(sourceClasses, sourceAttendance){
+  const roster=[["학년","반","학생이름"], ...rosterRowsFromClasses(sourceClasses)];
+  const att=[["날짜","학년","반","학생이름","상태"]];
+  Object.keys(sourceAttendance).sort().forEach(date=>{
+    const day=sourceAttendance[date]||{};
+    Object.keys(day).sort(classKeyCompare).forEach(key=>{
+      const p=String(key).split("-"), g=p.shift(), c=p.join("-");
+      Object.keys(day[key]||{}).sort((a,b)=>String(a).localeCompare(String(b),"ko")).forEach(st=>{
+        const raw=day[key][st];
+        const state=raw==="present"?"출석":raw==="absent"?"결석":"미체크";
+        att.push([date,g,c,st,state]);
+      });
+    });
+  });
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.aoa_to_sheet(roster), ws2=XLSX.utils.aoa_to_sheet(att);
+  ws1["!cols"]=[{wch:10},{wch:10},{wch:18}];
+  ws2["!cols"]=[{wch:14},{wch:10},{wch:10},{wch:18},{wch:10}];
+  XLSX.utils.book_append_sheet(wb,ws1,"학생명단");
+  XLSX.utils.book_append_sheet(wb,ws2,"출석데이터");
+  return wb;
+}
+
+function getCurrentMonthSundays(){
+  const now=new Date(), y=now.getFullYear(), m=now.getMonth();
+  const days=[];
+  for(let d=1; d<=31; d++){
+    const dt=new Date(y,m,d);
+    if(dt.getMonth()!==m) break;
+    if(dt.getDay()===0) days.push(dt);
+  }
+  return days;
+}
+function formatMatrixHeaderDate(dt){ return `${String(dt.getMonth()+1).padStart(2,"0")}월 ${String(dt.getDate()).padStart(2,"0")}일`; }
+function buildAttendanceInputWorkbook(sourceClasses){
+  const sundays=getCurrentMonthSundays();
+  const header=["학년","반","학생이름", ...sundays.map(formatMatrixHeaderDate)];
+  const rows=[header];
+  rosterRowsFromClasses(sourceClasses).forEach(r=>rows.push([...r, ...sundays.map(()=>"")]));
+
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"]=[{wch:10},{wch:10},{wch:18}, ...sundays.map(()=>({wch:13}))];
+  ws["!freeze"]={xSplit:3,ySplit:1};
+  XLSX.utils.book_append_sheet(wb,ws,"출석입력");
+
+  const guide=[
+    ["항목","내용"],
+    ["기준연도",new Date().getFullYear()],
+    ["입력방법","출석입력 시트 D열 이후의 날짜 열에 '출석' 또는 '결석' 입력"],
+    ["빈 셀","업로드 시 무시(기존 서버 데이터 유지)"],
+    ["날짜형식","09월 06일 / 2026-09-06 / 2026년 09월 06일 사용 가능"],
+    ["주의","기존 서버 전체 데이터는 이 양식 업로드로 삭제되지 않음"]
+  ];
+  const gs=XLSX.utils.aoa_to_sheet(guide); gs["!cols"]=[{wch:14},{wch:65}];
+  XLSX.utils.book_append_sheet(wb,gs,"설정");
+  return wb;
+}
+
+window.downloadEditTemplate = async function(){
+  if(!requireAdminLocal()) return;
+  try{
+    setBusy("전체 학생명단 불러오는 중...");
+
+    // 다운로드 시점에 서버에서 최신 전체 학생명단을 다시 조회한다.
+    // 화면의 선택 학년/반과 관계없이 Google Sheet Classes 시트의 모든 학생이 포함된다.
+    const r=await api("getAdminBackupData",{token:adminToken});
+    const allClasses=r.classes||{};
+    const totalStudents=rosterRowsFromClasses(allClasses).length;
+    if(totalStudents===0) return alert("서버에 등록된 학생명단이 없습니다.");
+
+    // 화면 메모리도 최신 명단으로 동기화
+    classes=allClasses;
+    loadGradeDropdown();
+
+    const wb=buildAttendanceInputWorkbook(allClasses);
+    XLSX.writeFile(wb,`출석_입력양식_${new Date().toISOString().slice(0,10)}.xlsx`);
+    markServerOk(`Google Sheet 연결됨 · 전체 학생 ${totalStudents}명`);
+  }catch(e){
+    showError(e);
+    if(!e?.isConnectionError) alert("출석 입력양식 다운로드 중 오류가 발생했습니다.\n"+(e?.message||e));
+  }
+};
+window.downloadServerBackupExcel = async function(){
+  if(!requireAdminLocal()) return;
+  try{
+    const r=await api("getAdminBackupData",{token:adminToken});
+    const wb=buildBackupWorkbook(r.classes||{},r.attendance||{});
+    const stamp=new Date().toISOString().replace(/[-:T]/g,"").slice(0,14);
+    XLSX.writeFile(wb,`출석부_서버백업_${stamp}.xlsx`);
+  }catch(e){ showError(e); alert(e.message); }
+};
+window.createDriveBackup = async function(){
+  if(!requireAdminLocal()) return;
+  try{
+    setBusy("Google Drive 백업 생성 중...");
+    const r=await api("createDriveBackup",{token:adminToken});
+    markServerOk("백업 생성 완료 · Google Sheet 연결됨");
+    alert(`Google Drive 백업이 생성되었습니다.\n${r.name}\n${r.url}`);
+  }catch(e){ showError(e); alert(e.message); }
+};
+
+/* ---------------- 서버관리: Firebase 백업 / 전체 업로드 ---------------- */
+function restoreServerStatusText(){
+  if(serverConnectionState === "ng") $("serverStatus").textContent = "서버 접속 NG";
+  else if(serverConnectionState === "ok") $("serverStatus").textContent = "Google Sheet 연결됨";
+  else $("serverStatus").textContent = "서버 연결 확인 중...";
+}
+window.backupFirebaseServer = async function(){
+  if(!requireAdminLocal()) return;
+  try{
+    setBusy("기존 Firebase 데이터 백업 중...");
+    const result=await legacyRetry("Firebase 서버 백업",loadLegacyFirebaseData);
+    if(!result.ok) throw result.error || new Error("Firebase 조회 실패");
+
+    const fbClasses=result.value.classes||{}, fbAttendance=result.value.attendance||{};
+    const wb = buildBackupWorkbook(fbClasses,fbAttendance);
+    const stamp = new Date().toISOString().replace(/[-:T]/g,"").slice(0,14);
+    XLSX.writeFile(wb,`Firebase_출석부_전체백업_${stamp}.xlsx`);
+    restoreServerStatusText();
+    alert(`Firebase 백업 완료!\n학생 ${rosterRowsFromClasses(fbClasses).length}명\n출석 ${countAttendanceRecords(fbAttendance)}건`);
+  }catch(e){
+    console.error(e);
+    restoreServerStatusText();
+    alert("Firebase 백업 중 오류가 발생했습니다.\n"+(e?.message||e));
+  }
+};
+
+function countAttendanceRecords(sourceAttendance){
+  let count=0;
+  Object.values(sourceAttendance||{}).forEach(day=>Object.values(day||{}).forEach(classData=>count+=Object.keys(classData||{}).length));
+  return count;
+}
+
+function normalizeBackupState(v){
+  const s=String(v??"").trim().toLowerCase();
+  if(["출석","present","p"].includes(s)) return "present";
+  if(["결석","absent","a"].includes(s)) return "absent";
+  if(["미체크","unchecked","미입력",""].includes(s)) return "미체크";
+  return null;
+}
+
+window.previewServerFullUpload = async function(event){
+  if(!requireAdminLocal()){ event.target.value=""; return; }
+  pendingServerFullImport=null;
+  $("serverFullApplyBtn").disabled=true;
+  const file=event.target.files?.[0];
+  if(!file) return;
+  $("serverFullUploadBox").classList.remove("hidden");
+  try{
+    const buf=await file.arrayBuffer(), wb=XLSX.read(buf,{type:"array",cellDates:true});
+    const rosterSheet=wb.Sheets["학생명단"], attSheet=wb.Sheets["출석데이터"];
+    if(!rosterSheet || !attSheet) throw new Error("'학생명단'과 '출석데이터' 시트가 모두 필요합니다.");
+
+    const rosterRaw=XLSX.utils.sheet_to_json(rosterSheet,{header:1,defval:"",raw:false});
+    const attRaw=XLSX.utils.sheet_to_json(attSheet,{header:1,defval:"",raw:false});
+    const roster=[], attendanceRows=[], errors=[];
+    const rosterSet=new Set(), attSet=new Set();
+
+    for(let i=1;i<rosterRaw.length;i++){
+      const r=rosterRaw[i]||[], g=String(r[0]??"").trim(), c=String(r[1]??"").trim(), st=String(r[2]??"").trim();
+      if(!g&&!c&&!st) continue;
+      if(!g||!c||!st){ errors.push(`학생명단 ${i+1}행: 학년/반/학생이름 누락`); continue; }
+      const k=`${g}\u0001${c}\u0001${st}`;
+      if(rosterSet.has(k)){ errors.push(`학생명단 ${i+1}행: 중복 ${g}-${c}/${st}`); continue; }
+      rosterSet.add(k); roster.push({grade:g,className:c,student:st});
+    }
+
+    for(let i=1;i<attRaw.length;i++){
+      const r=attRaw[i]||[];
+      if(!r.some(v=>String(v??"").trim())) continue;
+      const date=parseBackupDate(r[0]), g=String(r[1]??"").trim(), c=String(r[2]??"").trim(), st=String(r[3]??"").trim(), state=normalizeBackupState(r[4]);
+      if(!date||!g||!c||!st||!state){ errors.push(`출석데이터 ${i+1}행: 날짜/학년/반/학생/상태 형식 오류`); continue; }
+      const d=new Date(`${date}T00:00:00`);
+      if(Number.isNaN(d.getTime()) || d.getDay()!==0){ errors.push(`출석데이터 ${i+1}행: ${date}는 일요일이 아닙니다.`); continue; }
+      if(!rosterSet.has(`${g}\u0001${c}\u0001${st}`)){ errors.push(`출석데이터 ${i+1}행: 학생명단에 없는 학생 ${g}-${c}/${st}`); continue; }
+      const k=`${date}\u0001${g}\u0001${c}\u0001${st}`;
+      if(attSet.has(k)){ errors.push(`출석데이터 ${i+1}행: 중복 ${date}/${g}-${c}/${st}`); continue; }
+      attSet.add(k); attendanceRows.push({date,grade:g,className:c,student:st,state});
+    }
+
+    const preview=$("serverFullPreview");
+    if(errors.length){
+      setExcelProgress(100,"검증 실패",false);
+      preview.textContent=`검증 실패 (${errors.length}건)\n\n${errors.slice(0,40).join("\n")}${errors.length>40?`\n... 외 ${errors.length-40}건`:""}`;
+      return;
+    }
+    if(!roster.length) throw new Error("학생명단 데이터가 없습니다.");
+
+    pendingServerFullImport={roster,attendance:attendanceRows,fileName:file.name};
+    preview.textContent=`검증 완료\n파일: ${file.name}\n학생명단: ${roster.length}명\n출석데이터: ${attendanceRows.length}건\n\n'서버 전체 데이터 교체'를 누르면 현재 Google Sheet 서버를 자동 백업한 뒤 이 파일 내용으로 전체 교체합니다.`;
+    $("serverFullApplyBtn").disabled=false;
+  }catch(e){
+    $("serverFullPreview").textContent="검증 오류: "+(e?.message||e);
+  }
+};
+
+function parseBackupDate(v){
+  if(v instanceof Date && !Number.isNaN(v.getTime())) return dateToYmd(v);
+  if(typeof v==="number"){
+    const o=XLSX.SSF.parse_date_code(v);
+    if(o) return `${o.y}-${String(o.m).padStart(2,"0")}-${String(o.d).padStart(2,"0")}`;
+  }
+  const s=String(v??"").trim().replace(/[./]/g,"-");
+  const m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  return m?`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`:null;
+}
+
+window.cancelServerFullUpload = function(){
+  pendingServerFullImport=null;
+  $("serverFullUpload").value="";
+  $("serverFullApplyBtn").disabled=true;
+  $("serverFullPreview").textContent="";
+  $("serverFullUploadBox").classList.add("hidden");
+};
+
+window.applyServerFullUpload = async function(){
+  if(!requireAdminLocal() || !pendingServerFullImport) return;
+  const p=pendingServerFullImport;
+  const ok=confirm(`서버 전체 데이터를 교체할까요?\n\n학생 ${p.roster.length}명\n출석 ${p.attendance.length}건\n\n현재 서버는 먼저 Google Drive에 자동 백업됩니다. 이후 Classes/Attendance 전체가 이 파일 내용으로 교체됩니다.`);
+  if(!ok) return;
+  try{
+    setBusy("현재 서버 백업 후 전체 업로드 중...");
+    const r=await api("replaceAllData",{token:adminToken,roster:p.roster,attendanceRows:p.attendance});
+    cancelServerFullUpload();
+    await loadAllData();
+    alert(`서버 전체 업로드 완료!\n학생 ${r.rosterCount}명\n출석 ${r.attendanceCount}건\n자동 백업: ${r.backupName}`);
+  }catch(e){ showError(e); alert(e.message); }
+};
+
+/* ---------------- 출석 Excel 추가/갱신 ---------------- */
+function normalizeState(v){
+  const s=String(v??"").trim().toLowerCase();
+  if(["출석","present","p"].includes(s)) return "present";
+  if(["결석","absent","a"].includes(s)) return "absent";
+  if(["미체크","unchecked","미입력"].includes(s)) return "미체크";
+  return null;
+}
+function dateToYmd(dt){ return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`; }
+function parseMatrixDateHeader(v, baseYear){
+  if(v instanceof Date && !Number.isNaN(v.getTime())) return dateToYmd(v);
+  if(typeof v === "number"){
+    const o=XLSX.SSF.parse_date_code(v); if(o) return `${o.y}-${String(o.m).padStart(2,"0")}-${String(o.d).padStart(2,"0")}`;
+  }
+  const s=String(v??"").trim(); if(!s) return null;
+  let m=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if(m) return `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
+  m=s.match(/^(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일$/);
+  if(m) return `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
+  m=s.match(/^(\d{1,2})\s*월\s*(\d{1,2})\s*일$/);
+  if(m) return `${baseYear}-${m[1].padStart(2,"0")}-${m[2].padStart(2,"0")}`;
+  return null;
+}
+function getWorkbookBaseYear(wb){
+  const sh=wb.Sheets["설정"]; if(!sh) return new Date().getFullYear();
+  const rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:""});
+  for(const r of rows){ if(String(r[0]).trim()==="기준연도"){ const y=Number(r[1]); if(y>=2000&&y<=2100) return y; } }
+  return new Date().getFullYear();
+}
+
+window.previewExcelUpload = async function(event){
+  if(!requireAdminLocal()){ event.target.value=""; return; }
+  pendingImport=null; $("excelApplyBtn").disabled=true; $("excelPreview").classList.add("hidden");
+  const file=event.target.files?.[0]; if(!file) return;
+  try{
+    const buf=await file.arrayBuffer(), wb=XLSX.read(buf,{type:"array",cellDates:true});
+    const sheet=wb.Sheets["출석입력"];
+    if(!sheet) throw new Error("'출석입력' 시트가 필요합니다. 관리자 메뉴의 '출석 입력양식 다운로드' 파일을 사용하세요.");
+    const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",raw:false});
+    if(rows.length<2) throw new Error("출석입력 데이터가 없습니다.");
+
+    const baseYear=getWorkbookBaseYear(wb), header=rows[0]||[];
+    if(String(header[0]).trim()!=="학년" || String(header[1]).trim()!=="반" || String(header[2]).trim()!=="학생이름") throw new Error("A~C열 헤더는 '학년 / 반 / 학생이름'이어야 합니다.");
+
+    setExcelProgress(28,"출석 데이터 검증 중...",true);
+    const errors=[], warnings=[], dateCols=[], dateSet=new Set();
+    for(let col=3; col<header.length; col++){
+      if(String(header[col]??"").trim()==="") continue;
+      const date=parseMatrixDateHeader(header[col],baseYear);
+      if(!date){ errors.push(`${col+1}열 날짜 형식 오류: ${header[col]}`); continue; }
+      const d=new Date(`${date}T00:00:00`);
+      if(Number.isNaN(d.getTime())){ errors.push(`${col+1}열 날짜 오류: ${header[col]}`); continue; }
+      if(d.getDay()!==0) errors.push(`${col+1}열 ${date}: 일요일이 아닙니다.`);
+      if(dateSet.has(date)) errors.push(`중복 날짜 열: ${date}`);
+      dateSet.add(date); dateCols.push({col,date});
+    }
+    if(!dateCols.length) errors.push("D열 이후에 출석 날짜를 1개 이상 입력하세요.");
+
+    const rosterSet=new Set();
+    Object.keys(classes).forEach(key=>{
+      const p=String(key).split("-"), g=p.shift(), c=p.join("-");
+      (classes[key]||[]).forEach(st=>rosterSet.add(`${g}\u0001${c}\u0001${st}`));
+    });
+
+    const updates=[], updateSet=new Set();
+    for(let i=1;i<rows.length;i++){
+      const r=rows[i]||[], g=String(r[0]??"").trim(), c=String(r[1]??"").trim(), st=String(r[2]??"").trim();
+      if(!g&&!c&&!st) continue;
+      if(!g||!c||!st){ errors.push(`${i+1}행: 학년/반/학생이름 누락`); continue; }
+      if(!rosterSet.has(`${g}\u0001${c}\u0001${st}`)){ errors.push(`${i+1}행: 현재 학생명단에 없는 학생 ${g}-${c}/${st}`); continue; }
+
+      for(const dc of dateCols){
+        const raw=String(r[dc.col]??"").trim();
+        if(!raw) continue; // 빈 셀은 기존 서버 데이터 유지
+        const state=normalizeState(raw);
+        if(!state){ errors.push(`${i+1}행 ${header[dc.col]}: '${raw}'은(는) 출석/결석 형식이 아닙니다.`); continue; }
+        const k=`${dc.date}\u0001${g}\u0001${c}\u0001${st}`;
+        if(updateSet.has(k)){ errors.push(`${i+1}행: 중복 출석 입력 ${dc.date}/${g}-${c}/${st}`); continue; }
+        updateSet.add(k); updates.push({date:dc.date,grade:g,className:c,student:st,state});
+      }
+    }
+
+    const preview=$("excelPreview"); preview.classList.remove("hidden");
+    if(errors.length){
+      preview.textContent=`검증 실패 (${errors.length}건)\n\n${errors.slice(0,30).join("\n")}${errors.length>30?`\n... 외 ${errors.length-30}건`:""}`;
+      return;
+    }
+    if(!updates.length){ setExcelProgress(100,"검증 완료 · 반영할 데이터 없음",false); preview.textContent="검증 완료: 입력된 출석/결석 데이터가 없습니다."; return; }
+
+    pendingImport={attendance:updates,fileName:file.name,warnings};
+    setExcelProgress(100,"검증 완료 · 서버 반영 대기",false);
+    preview.textContent=`검증 완료\n파일: ${file.name}\n날짜 열: ${dateCols.length}개\n추가/갱신 대상: ${updates.length}건\n\n빈 셀은 무시되며 기존 서버 데이터는 유지됩니다.\n같은 날짜/학생 데이터가 있으면 상태만 갱신되고, 없으면 새로 추가됩니다.`;
+    $("excelApplyBtn").disabled=false;
+  }catch(e){ showError(e); alert(e.message); }
+};
+
+window.applyExcelUpload = async function(){
+  if(!requireAdminLocal() || !pendingImport) return;
+  if(!confirm(`출석 데이터를 서버에 추가/갱신할까요?\n대상 ${pendingImport.attendance.length}건\n\n기존 서버 전체 데이터는 삭제되지 않습니다.`)) return;
+  try{
+    $("excelApplyBtn").disabled=true;
+    resetExcelProgress();
+    setBusy("출석 데이터 반영 중...");
+    setExcelProgress(35,"Google Sheet에 출석 데이터 업로드 중...",true);
+    const rowsToSync=pendingImport.attendance.slice();
+    const r=await api("upsertAttendanceRows",{token:adminToken,attendanceRows:rowsToSync});
+
+    setExcelProgress(68,"기존 Firebase 서버에 동기화 중...",true);
+    const fbResult=await legacyRetry("Excel 출석 추가/갱신",()=>syncLegacyAttendanceRows(rowsToSync));
+
+    setExcelProgress(88,"서버 데이터 다시 불러오는 중...",true);
+    pendingImport=null; $("excelUpload").value=""; $("excelPreview").classList.add("hidden");
+    await loadAllData();
+
+    setExcelProgress(100,"업로드 완료",false);
+    showDualWriteResult(`업로드 완료!\n신규 추가 ${r.insertedCount}건\n기존 상태 갱신 ${r.updatedCount}건`,fbResult);
+    setTimeout(resetExcelProgress,1800);
+  }catch(e){
+    $("excelApplyBtn").disabled=false;
+    setExcelProgress(100,"업로드 실패",false);
+
+    const msg=String(e?.message||e||"");
+    if(msg.includes("지원하지 않는 action입니다: upsertAttendanceRows")){
+      const guide =
+        "현재 Google Apps Script 서버가 이전 버전입니다.\n\n" +
+        "동일 날짜 데이터 문제는 아닙니다.\n" +
+        "최신 Code.gs에는 upsertAttendanceRows 기능이 포함되어 있습니다.\n\n" +
+        "Apps Script에서 최신 Code.gs로 교체한 뒤\n" +
+        "[배포 → 배포 관리 → 수정 → 새 버전 → 배포]를 실행해 주세요.";
+      $("excelPreview").classList.remove("hidden");
+      $("excelPreview").textContent=guide;
+      alert(guide);
+    }else{
+      showError(e); alert(msg);
+    }
+  }
+};
+
+window.cleanupServerData = async function(){
+  if(!requireAdminLocal()) return;
+  const ok=confirm("서버 정리를 실행할까요?\n\n- 현재 학생명단에 없는 출석데이터 삭제\n- 잘못된 출석/학생 행 삭제\n- 중복 데이터 정리\n- 실행 전 Google Drive 자동 백업\n\n이 작업은 서버 데이터를 삭제할 수 있습니다.");
+  if(!ok) return;
+  try{
+    setBusy("서버 백업 및 정리 중...");
+    const r=await api("cleanupServerData",{token:adminToken});
+    await loadAllData();
+    alert(`서버 정리 완료!\n\n학생명단 잘못된 행 삭제: ${r.classInvalidRemoved}건\n학생명단 중복 삭제: ${r.classDuplicateRemoved}건\n출석 잘못된 행 삭제: ${r.attendanceInvalidRemoved}건\n학생명단 미존재 출석 삭제: ${r.orphanRemoved}건\n출석 중복 삭제: ${r.attendanceDuplicateRemoved}건\n\n자동 백업: ${r.backupName}`);
+  }catch(e){ showError(e); alert(e.message); }
+};
+</script>
+</body>
+</html>
